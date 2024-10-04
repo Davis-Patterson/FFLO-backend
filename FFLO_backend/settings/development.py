@@ -17,3 +17,5 @@ DATABASES = {
         'PORT': config('DATABASE_PORT', default=5432, cast=int),
     }
 }
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
