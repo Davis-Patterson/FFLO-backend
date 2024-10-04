@@ -1,9 +1,10 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
-from .models import Book, BookRental
+from .models import Book, BookRental, Image
 from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+from .serializers import BookSerializer
 
 class RentBookView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
@@ -49,3 +50,17 @@ class ReturnBookView(generics.GenericAPIView):
         book.save()
 
         return Response({"detail": "Book returned successfully"}, status=status.HTTP_200_OK)
+
+class BookCreateView(generics.CreateAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        images_files = self.request.FILES.getlist('images')
+        book = serializer.save()
+
+        # Save each image file if provided
+        if images_files:
+            for image_file in images_files:
+                Image.objects.create(book=book, image_file=image_file)

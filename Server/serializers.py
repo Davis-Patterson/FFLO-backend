@@ -1,0 +1,28 @@
+from rest_framework import serializers
+from .models import Book, Image
+
+class ImageSerializer(serializers.ModelSerializer):
+    image_file = serializers.ImageField(write_only=True, required=False)
+
+    class Meta:
+        model = Image
+        fields = ['image_url', 'image_file']
+        read_only_fields = ['image_url']
+
+class BookSerializer(serializers.ModelSerializer):
+    images = ImageSerializer(many=True, required=False)
+
+    class Meta:
+        model = Book
+        fields = ['title', 'author', 'images', 'inventory', 'available_inventory']
+
+    def create(self, validated_data):
+        images_data = validated_data.pop('images', [])
+        book = Book.objects.create(**validated_data)
+
+        # Handle image uploads
+        for image_data in images_data:
+            image_file = image_data.pop('image_file')
+            Image.objects.create(book=book, image_file=image_file)
+
+        return book
