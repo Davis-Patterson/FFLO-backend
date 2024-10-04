@@ -33,10 +33,11 @@ class Image(models.Model):
             convert_to_webp(temp_image_path, webp_image_path)  # Call the conversion function
 
             # Upload to S3 and get the URL
+            webp_image_url = f"{settings.AWS_S3_FOLDER}/{os.path.basename(webp_image_path)}"
             with open(webp_image_path, 'rb') as webp_file:
-                webp_image_url = default_storage.save(f"book_images/{os.path.basename(webp_image_path)}", webp_file)
+                default_storage.save(webp_image_url, webp_file)
 
-            self.image_url = f"{settings.MEDIA_URL}{webp_image_url}"
+            self.image_url = f'{settings.MEDIA_URL}{os.path.basename(webp_image_path)}'
 
             # Clean up the temporary files
             os.remove(temp_image_path)
