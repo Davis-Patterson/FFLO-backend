@@ -14,10 +14,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validators=[validate_password],
     )
     password2 = serializers.CharField(write_only=True, required=True)
+    joined_date = serializers.ReadOnlyField()
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'password', 'password2', 'first_name', 'last_name')
+        fields = ('id', 'email', 'password', 'password2', 'first_name', 'last_name', 'joined_date')
         extra_kwargs = {
             'first_name': {'required': True},
             'last_name': {'required': False},

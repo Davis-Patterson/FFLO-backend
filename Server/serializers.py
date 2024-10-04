@@ -10,11 +10,15 @@ class ImageSerializer(serializers.ModelSerializer):
         read_only_fields = ['image_url']
 
 class BookSerializer(serializers.ModelSerializer):
+    id = serializers.ReadOnlyField()
     images = ImageSerializer(many=True, required=False)
+    created_date = serializers.ReadOnlyField()
+    flair = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    archived = serializers.BooleanField(default=False)
 
     class Meta:
         model = Book
-        fields = ['title', 'author', 'images', 'inventory', 'available_inventory']
+        fields = ['id', 'title', 'author', 'images', 'inventory', 'available', 'created_date', 'flair', 'archived']
 
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])

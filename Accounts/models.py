@@ -33,8 +33,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     member = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
-    reset_code = models.CharField(max_length=6, blank=True, null=True)
     free_books = models.IntegerField(default=0)
+    joined_date = models.DateTimeField(auto_now_add=True)
+    reset_code = models.CharField(max_length=6, blank=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']

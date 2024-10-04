@@ -15,7 +15,7 @@ class RentBookView(generics.GenericAPIView):
         user = request.user
 
         # Check inventory
-        if book.available_inventory <= 0:
+        if book.available <= 0:
             return Response({"detail": "No copies available"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Handle membership and free books
@@ -25,7 +25,7 @@ class RentBookView(generics.GenericAPIView):
 
         # Create rental
         rental = BookRental.objects.create(book=book, student=user)
-        book.available_inventory -= 1
+        book.available -= 1
         book.save()
 
         return Response({"detail": "Book rented successfully"}, status=status.HTTP_200_OK)
@@ -46,7 +46,7 @@ class ReturnBookView(generics.GenericAPIView):
         # Mark the book as returned
         rental.return_date = timezone.now()
         rental.save()
-        book.available_inventory += 1
+        book.available += 1
         book.save()
 
         return Response({"detail": "Book returned successfully"}, status=status.HTTP_200_OK)
@@ -63,4 +63,15 @@ class BookCreateView(generics.CreateAPIView):
         # Save each image file if provided
         if images_files:
             for image_file in images_files:
-                Image.objects.create(book=book, image_file=image_file)
+                image_instance = Image(book=book)
+                image_instance.save(image_file=image_file)
+
+class DeleteBookView(generics.DestroyAPIView):
+    queryset = Book.objects.all()
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'id'
+
+    def delete(self, request, *args, **kwargs):
+        book = self.get_object()
+        book.delete()
+        return Response({"detail": "Book deleted successfully"}, status=status.HTTP_200_OK)

@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
@@ -26,6 +27,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'Accounts.apps.AccountsConfig',
     'Server.apps.ServerConfig',
+    'storages',
 ]
 
 MIDDLEWARE = [
@@ -123,10 +125,16 @@ AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
 AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME')
 AWS_S3_FOLDER = config('AWS_S3_FOLDER')
+AWS_S3_CUSTOM_DOMAIN = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/{AWS_S3_FOLDER}/'
+AWS_S3_FILE_OVERWRITE = False
+AWS_DEFAULT_ACL = None
+AWS_LOCATION = 'books'
 
 # Use S3 for file storage
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 # Configure media files to be stored in the 'books' folder in the S3 bucket
 AWS_LOCATION = AWS_S3_FOLDER
-MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/{AWS_S3_FOLDER}/'
+MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/{AWS_LOCATION}/'
+
+logging.basicConfig(level=logging.DEBUG)
