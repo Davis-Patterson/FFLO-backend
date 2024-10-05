@@ -1,3 +1,4 @@
+from Accounts.models import Membership, Transaction
 from Server.models import BookRental
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework import serializers
@@ -39,14 +40,57 @@ class CurrentBookSerializer(serializers.ModelSerializer):
         model = BookRental
         fields = ['book', 'rental_date', 'return_date']
 
+class TransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Transaction
+        fields = ['transaction_date', 'amount', 'item']
+
+class CurrentMembershipSerializer(serializers.ModelSerializer):
+    transaction_history = TransactionSerializer(many=True, read_only=True)
+    recurrence = serializers.DateField()
+
+    class Meta:
+        model = Membership
+        fields = ['start_date', 'end_date', 'free_books_used', 'active', 'recurrence', 'transaction_history']
+
 class UserInfoSerializer(serializers.ModelSerializer):
+    active_membership = serializers.SerializerMethodField()
+    current_book = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'joined_date', 'active_membership', 'current_book']
+        read_only_fields = ['id', 'email', 'joined_date']
+
+    def get_active_membership(self, obj):
+        active_membership = obj.memberships.filter(active=True).first()
+        if active_membership:
+            return CurrentMembershipSerializer(active_membership).data
+        return None
+
+    def get_current_book(self, obj):
+        current_book = obj.rented_books.filter(return_date__isnull=True).first()
+        if current_book:
+            return CurrentBookSerializer(current_book).data
+        return None
+
+class UserDetailSerializer(serializers.ModelSerializer):
+    current_membership = serializers.SerializerMethodField()
+    membership_history = CurrentMembershipSerializer(many=True, read_only=True, source='memberships')
+    transaction_history = TransactionSerializer(many=True, read_only=True, source='transactions')
     current_book = serializers.SerializerMethodField()
     book_history = CurrentBookSerializer(many=True, read_only=True, source='rented_books')
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'member', 'is_staff', 'free_books', 'joined_date', 'current_book', 'book_history']
+        fields = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'joined_date', 'active_membership', 'membership_history', 'transaction_history', 'current_book', 'book_history']
         read_only_fields = ['id', 'email', 'joined_date']
+
+    def get_active_membership(self, obj):
+        active_membership = obj.memberships.filter(active=True).first()
+        if active_membership:
+            return CurrentMembershipSerializer(active_membership).data
+        return None
 
     def get_current_book(self, obj):
         current_book = obj.rented_books.filter(return_date__isnull=True).first()
@@ -189,3 +233,18 @@ class PasswordResetSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.reset_code = None  # Clear the reset code
         user.save()
+
+class CreateMembershipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Membership
+        fields = ['user', 'start_date', 'recurrence']
+
+    def create(self, validated_data):
+        user = validated_data['user']
+        membership = Membership.objects.create(
+            user=user,
+            start_date=validated_data.get('start_date', timezone.now()),
+            recurrence=validated_data.get('recurrence', timezone.now() + timedelta(days=30)),
+            active=True
+        )
+        return membership

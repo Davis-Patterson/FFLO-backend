@@ -4,7 +4,7 @@ from django.db import models
 from django.conf import settings
 from django.core.files.storage import default_storage
 from storages.backends.s3boto3 import S3Boto3Storage
-from Accounts.models import CustomUser
+from Accounts.models import CustomUser, Transaction
 from django.utils import timezone
 from .utils import convert_to_webp
 
@@ -26,6 +26,7 @@ class Book(models.Model):
     flair = models.CharField(max_length=10, blank=True, null=True)
     archived = models.BooleanField(default=False)
     categories = models.ManyToManyField(Category, related_name='books', blank=True)
+    rental_price = models.DecimalField(max_digits=6, decimal_places=2, default=5.00)
 
     def __str__(self):
         return self.title
@@ -82,6 +83,8 @@ class BookRental(models.Model):
     user = models.ForeignKey(CustomUser, related_name="rented_books", on_delete=models.CASCADE)
     rental_date = models.DateTimeField(default=timezone.now)
     return_date = models.DateTimeField(blank=True, null=True)
+    free = models.BooleanField(default=False)
+    transaction = models.ForeignKey('Accounts.Transaction', related_name="rentals", on_delete=models.SET_NULL, null=True, blank=True)
 
     def is_returned(self):
         return self.return_date is not None

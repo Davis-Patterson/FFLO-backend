@@ -1,12 +1,13 @@
 from django.shortcuts import render
 from rest_framework import generics, permissions, status, permissions
-from .serializers import UserRegistrationSerializer, CustomAuthTokenSerializer, PasswordChangeSerializer, PasswordResetRequestSerializer, PasswordResetSerializer, StaffUserRegistrationSerializer, UserInfoSerializer
+from .serializers import UserRegistrationSerializer, UserInfoSerializer, UserDetailSerializer, CustomAuthTokenSerializer, PasswordChangeSerializer, PasswordResetRequestSerializer, PasswordResetSerializer, StaffUserRegistrationSerializer, CreateMembershipSerializer
 from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from .models import Membership
 
 User = get_user_model()
 
@@ -44,7 +45,7 @@ class AllUsersView(generics.ListAPIView):
 
 class SpecificUserView(generics.RetrieveAPIView):
     queryset = User.objects.all()
-    serializer_class = UserInfoSerializer
+    serializer_class = UserDetailSerializer
     permission_classes = [IsStaffPermission]
     lookup_field = 'id'
 
@@ -59,10 +60,18 @@ class MembershipInfoView(APIView):
 
     def get(self, request):
         user = request.user
-        return Response({
-            "member_status": user.member,
-            "free_books_used": user.free_books
-        })
+        active_membership = Membership.objects.filter(user=user, active=True).first()
+        
+        if active_membership:
+            return Response({
+                "active_membership": True,
+                "free_books_used": active_membership.free_books_used,
+                "next_payment_date": active_membership.recurrence
+            })
+        else:
+            return Response({
+                "active_membership": False
+            })
 
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -100,3 +109,21 @@ class PasswordResetView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({"detail": "Password has been reset successfully"}, status=status.HTTP_200_OK)
+
+class CreateMembershipView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+
+        # Check if user is already a member
+        if user.memberships.filter(active=True).exists():
+            return Response({"detail": "User is already a member."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create new membership (the price is handled by the model's default value)
+        membership = Membership.objects.create(user=user)
+        
+        # Set the next recurrence automatically
+        membership.set_next_recurrence()
+
+        return Response({"detail": "Membership created successfully."}, status=status.HTTP_201_CREATED)

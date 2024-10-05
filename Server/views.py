@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status, viewsets
 from rest_framework.response import Response
 from django.shortcuts import get_list_or_404
 from .models import Category, Book, BookRental, Image
+from Accounts.models import Transaction
 from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
@@ -40,55 +41,115 @@ class BookDetailView(generics.RetrieveAPIView):
     lookup_field = 'id'
     permission_classes = []
 
-class FreeRentalView(generics.GenericAPIView):
+def rental_request(user, book_ids):
+    books = Book.objects.filter(id__in=book_ids)
+    active_membership = user.memberships.filter(active=True).first()
+    free_books_remaining = 2 - active_membership.free_books_used if active_membership else 0
+
+    total_rental_amount = 0
+    free_books_used = 0
+    book_availability = []
+
+    for book in books:
+        if book.available <= 0:
+            return {"error": f"No copies available for book {book.title}"}
+
+        if free_books_remaining > 0:
+            free_books_used += 1
+            free_books_remaining -= 1
+        else:
+            total_rental_amount += book.rental_price
+
+        book_availability.append({
+            "book_id": book.id,
+            "title": book.title,
+            "free": free_books_remaining >= 0,
+            "price": 0.00 if free_books_remaining >= 0 else book.rental_price
+        })
+
+    return {
+        "book_availability": book_availability,
+        "total_rental_amount": total_rental_amount,
+        "free_books_used": free_books_used
+    }
+
+class CheckoutView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         user = request.user
-        book_id = kwargs.get('book_id')
-        
-        # Check if the user is a member
-        if not user.member:
-            return Response({"detail": "User is not a member"}, status=status.HTTP_403_FORBIDDEN)
+        cart_items = request.data.get('cart_items', [])
+        if not cart_items:
+            return Response({"detail": "No items in the cart"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if the user has free rentals available
-        if user.free_books <= 0:
-            return Response({"detail": "No free rentals available this week"}, status=status.HTTP_400_BAD_REQUEST)
+        book_ids = [item['book_id'] for item in cart_items if item['type'] == 'rental']
+        total_amount = 0
+        rental_details = {}
 
-        # Find the book
-        book = Book.objects.get(id=book_id)
-        if book.available <= 0:
-            return Response({"detail": f"No copies available for book {book.title}"}, status=status.HTTP_400_BAD_REQUEST)
+        # If there are rentals in the cart, calculate rental prices
+        if book_ids:
+            rental_details = rental_request(user, book_ids)
+            if "error" in rental_details:
+                return Response({"detail": rental_details["error"]}, status=status.HTTP_400_BAD_REQUEST)
+            total_amount += rental_details["total_rental_amount"]
 
-        # Create rental
-        rental = BookRental.objects.create(book=book, user=user)
-        book.available -= 1
-        book.save()
+        # Add other types of cart items here (e.g., merchandise)
 
-        # Deduct from user's free books count
-        user.free_books -= 1
-        user.save()
+        # Send total_amount to Stripe for payment processing (integration handled later)
+        # For now, we assume the payment request is created successfully and return the total amount
+        return Response({
+            "total_amount": total_amount,
+            "rental_details": rental_details,
+            "stripe_payment_intent": None  # Placeholder for Stripe payment intent
+        }, status=status.HTTP_200_OK)
 
-        return Response({"detail": f"Book '{book.title}' rented successfully"}, status=status.HTTP_200_OK)
-
-class PaidRentalView(generics.GenericAPIView):
+class CheckoutFinalizationView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         user = request.user
-        book_id = kwargs.get('book_id')
+        payment_successful = request.data.get('payment_successful', False)
+        stripe_payment_id = request.data.get('stripe_payment_id', None)
+        cart_items = request.data.get('cart_items', [])
 
-        # Find the book
-        book = Book.objects.get(id=book_id)
-        if book.available <= 0:
-            return Response({"detail": f"No copies available for book {book.title}"}, status=status.HTTP_400_BAD_REQUEST)
+        if not payment_successful or not stripe_payment_id:
+            return Response({"detail": "Payment failed or incomplete"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create rental
-        rental = BookRental.objects.create(book=book, user=user)
-        book.available -= 1
-        book.save()
+        book_ids = [item['book_id'] for item in cart_items if item['type'] == 'rental']
+        rentals = []
 
-        return Response({"detail": f"Book '{book.title}' rented successfully"}, status=status.HTTP_200_OK)
+        # Finalize rentals if present
+        if book_ids:
+            rental_details = rental_request(user, book_ids)
+            if "error" in rental_details:
+                return Response({"detail": rental_details["error"]}, status=status.HTTP_400_BAD_REQUEST)
+
+            for book_id in book_ids:
+                book = Book.objects.get(id=book_id)
+                free_rental = rental_details['free_books_used'] > 0
+                rental = BookRental.objects.create(book=book, user=user, free=free_rental)
+                rentals.append(rental)
+                book.available -= 1
+                book.save()
+
+            # Update membership free books if used
+            active_membership = user.memberships.filter(active=True).first()
+            if active_membership:
+                active_membership.free_books_used += rental_details['free_books_used']
+                active_membership.save()
+
+        # Record the transaction
+        transaction = Transaction.objects.create(
+            user=user,
+            amount=sum([item['price'] for item in cart_items]),
+            stripe_payment_id=stripe_payment_id
+        )
+
+        return Response({
+            "detail": "Checkout finalized successfully",
+            "rental_ids": [rental.id for rental in rentals],
+            "transaction_id": transaction.id
+        }, status=status.HTTP_200_OK)
 
 class ReturnBookView(generics.GenericAPIView):
     permission_classes = []

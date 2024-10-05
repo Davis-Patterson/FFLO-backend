@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import UserRegistrationView, LogoutView, CustomObtainAuthToken, PasswordChangeView, PasswordResetRequestView, PasswordResetView, CreateStaffUserView, AllUsersView, SpecificUserView, CurrentUserView, MembershipInfoView
+from .views import UserRegistrationView, LogoutView, CustomObtainAuthToken, PasswordChangeView, PasswordResetRequestView, PasswordResetView, CreateStaffUserView, AllUsersView, SpecificUserView, CurrentUserView, MembershipInfoView, CreateMembershipView
 from rest_framework.authtoken.views import obtain_auth_token
 
 urlpatterns = [
@@ -14,4 +14,5 @@ urlpatterns = [
     path('users/<int:id>/', SpecificUserView.as_view(), name='specific-user'),
     path('users/me/', CurrentUserView.as_view(), name='current-user'),
     path('users/membership/', MembershipInfoView.as_view(), name='membership-info'),
+    path('membership/create/', CreateMembershipView.as_view(), name='create-membership'),
 ]
