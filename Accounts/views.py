@@ -127,3 +127,15 @@ class CreateMembershipView(generics.GenericAPIView):
         membership.set_next_recurrence()
 
         return Response({"detail": "Membership created successfully."}, status=status.HTTP_201_CREATED)
+
+class ResetFreeBooksView(APIView):
+    permission_classes = [IsStaffPermission]
+
+    def post(self, request, *args, **kwargs):
+        active_memberships = Membership.objects.filter(active=True)
+
+        for membership in active_memberships:
+            membership.free_books_used = 0
+            membership.save()
+
+        return Response({"detail": "Free books count has been reset for all active memberships."}, status=status.HTTP_200_OK)

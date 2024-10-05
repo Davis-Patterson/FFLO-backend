@@ -36,9 +36,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return user
 
 class CurrentBookSerializer(serializers.ModelSerializer):
+    free = serializers.BooleanField()
+
     class Meta:
         model = BookRental
-        fields = ['book', 'rental_date', 'return_date']
+        fields = ['book', 'rental_date', 'return_date', 'free']
 
 class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -54,49 +56,49 @@ class CurrentMembershipSerializer(serializers.ModelSerializer):
         fields = ['start_date', 'end_date', 'free_books_used', 'active', 'recurrence', 'transaction_history']
 
 class UserInfoSerializer(serializers.ModelSerializer):
-    active_membership = serializers.SerializerMethodField()
-    current_book = serializers.SerializerMethodField()
+    checked_out = serializers.SerializerMethodField()
+    membership = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'joined_date', 'active_membership', 'current_book']
+        fields = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'joined_date', 'membership', 'checked_out']
         read_only_fields = ['id', 'email', 'joined_date']
 
-    def get_active_membership(self, obj):
-        active_membership = obj.memberships.filter(active=True).first()
-        if active_membership:
-            return CurrentMembershipSerializer(active_membership).data
+    def get_membership(self, obj):
+        membership = obj.memberships.filter(active=True).first()
+        if membership:
+            return CurrentMembershipSerializer(membership).data
         return None
 
-    def get_current_book(self, obj):
-        current_book = obj.rented_books.filter(return_date__isnull=True).first()
-        if current_book:
-            return CurrentBookSerializer(current_book).data
-        return None
+    def get_checked_out(self, obj):
+        current_books = obj.rented_books.filter(return_date__isnull=True)
+        if current_books.exists():
+            return CurrentBookSerializer(current_books, many=True).data
+        return []
 
 class UserDetailSerializer(serializers.ModelSerializer):
-    current_membership = serializers.SerializerMethodField()
+    checked_out = serializers.SerializerMethodField()
+    membership = serializers.SerializerMethodField()
     membership_history = CurrentMembershipSerializer(many=True, read_only=True, source='memberships')
     transaction_history = TransactionSerializer(many=True, read_only=True, source='transactions')
-    current_book = serializers.SerializerMethodField()
     book_history = CurrentBookSerializer(many=True, read_only=True, source='rented_books')
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'joined_date', 'active_membership', 'membership_history', 'transaction_history', 'current_book', 'book_history']
+        fields = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'book_history']
         read_only_fields = ['id', 'email', 'joined_date']
 
-    def get_active_membership(self, obj):
-        active_membership = obj.memberships.filter(active=True).first()
-        if active_membership:
-            return CurrentMembershipSerializer(active_membership).data
+    def get_membership(self, obj):
+        membership = obj.memberships.filter(active=True).first()
+        if membership:
+            return CurrentMembershipSerializer(membership).data
         return None
 
-    def get_current_book(self, obj):
-        current_book = obj.rented_books.filter(return_date__isnull=True).first()
-        if current_book:
-            return CurrentBookSerializer(current_book).data
-        return None
+    def get_checked_out(self, obj):
+        current_books = obj.rented_books.filter(return_date__isnull=True)
+        if current_books.exists():
+            return CurrentBookSerializer(current_books, many=True).data
+        return []
 
 class StaffUserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(

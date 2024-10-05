@@ -71,7 +71,7 @@ class Membership(models.Model):
         self.save()
 
 class Transaction(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="transactions")  # Changed to CustomUser
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="transactions")
     transaction_date = models.DateTimeField(auto_now_add=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     item = models.CharField(max_length=255)

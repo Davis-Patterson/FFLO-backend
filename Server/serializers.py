@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Category, Book, Image, BookRental
 from Accounts.models import CustomUser
+from Accounts.serializers import TransactionSerializer
 
 class ImageSerializer(serializers.ModelSerializer):
     image_file = serializers.ImageField(write_only=True, required=False)
@@ -17,10 +18,12 @@ class UserRentalSerializer(serializers.ModelSerializer):
 
 class CurrentRentalSerializer(serializers.ModelSerializer):
     user = UserRentalSerializer(read_only=True)
+    transaction = TransactionSerializer(read_only=True)
+    free = serializers.BooleanField()
 
     class Meta:
         model = BookRental
-        fields = ['user', 'rental_date', 'return_date']
+        fields = ['user', 'rental_date', 'return_date', 'free', 'transaction']
 
 class CategorySerializer(serializers.ModelSerializer):
     books = serializers.StringRelatedField(many=True)

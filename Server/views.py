@@ -35,11 +35,17 @@ class BookListView(generics.ListAPIView):
     serializer_class = BookSerializer
     permission_classes = []
 
+class BookInfoView(generics.RetrieveAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookSerializer
+    lookup_field = 'id'
+    permission_classes = []
+
 class BookDetailView(generics.RetrieveAPIView):
     queryset = Book.objects.all()
     serializer_class = BookDetailSerializer
     lookup_field = 'id'
-    permission_classes = []
+    permission_classes = [IsStaffPermission]
 
 def rental_request(user, book_ids):
     books = Book.objects.filter(id__in=book_ids)
@@ -54,7 +60,9 @@ def rental_request(user, book_ids):
         if book.available <= 0:
             return {"error": f"No copies available for book {book.title}"}
 
-        if free_books_remaining > 0:
+        is_free = free_books_remaining > 0
+
+        if is_free:
             free_books_used += 1
             free_books_remaining -= 1
         else:
@@ -63,8 +71,9 @@ def rental_request(user, book_ids):
         book_availability.append({
             "book_id": book.id,
             "title": book.title,
-            "free": free_books_remaining >= 0,
-            "price": 0.00 if free_books_remaining >= 0 else book.rental_price
+            "free": is_free,
+            "price": 0.00 if is_free else book.rental_price,
+            "available_copies": book.available
         })
 
     return {
