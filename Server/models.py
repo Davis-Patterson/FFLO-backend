@@ -10,6 +10,13 @@ from .utils import convert_to_webp
 
 print(default_storage.__class__.__name__)
 
+class Category(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
 class Book(models.Model):
     title = models.CharField(max_length=255)
     author = models.CharField(max_length=255)
@@ -18,6 +25,7 @@ class Book(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     flair = models.CharField(max_length=10, blank=True, null=True)
     archived = models.BooleanField(default=False)
+    categories = models.ManyToManyField(Category, related_name='books', blank=True)
 
     def __str__(self):
         return self.title
@@ -71,7 +79,7 @@ class Image(models.Model):
 
 class BookRental(models.Model):
     book = models.ForeignKey(Book, related_name="rentals", on_delete=models.CASCADE)
-    student = models.ForeignKey(CustomUser, related_name="rented_books", on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, related_name="rented_books", on_delete=models.CASCADE)
     rental_date = models.DateTimeField(default=timezone.now)
     return_date = models.DateTimeField(blank=True, null=True)
 

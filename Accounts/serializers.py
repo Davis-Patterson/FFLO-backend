@@ -1,9 +1,9 @@
+from Server.models import BookRental
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.utils.crypto import get_random_string
 from django.core.mail import send_mail
-
 
 User = get_user_model()
 
@@ -32,6 +32,59 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password2')
         user = User.objects.create_user(**validated_data)
+        return user
+
+class CurrentBookSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookRental
+        fields = ['book', 'rental_date', 'return_date']
+
+class UserInfoSerializer(serializers.ModelSerializer):
+    current_book = serializers.SerializerMethodField()
+    book_history = CurrentBookSerializer(many=True, read_only=True, source='rented_books')
+
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name', 'member', 'is_staff', 'free_books', 'joined_date', 'current_book', 'book_history']
+        read_only_fields = ['id', 'email', 'joined_date']
+
+    def get_current_book(self, obj):
+        current_book = obj.rented_books.filter(return_date__isnull=True).first()
+        if current_book:
+            return CurrentBookSerializer(current_book).data
+        return None
+
+class StaffUserRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password],
+    )
+    password2 = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = User
+        fields = ('id', 'email', 'password', 'password2', 'first_name', 'last_name')
+        extra_kwargs = {
+            'first_name': {'required': True},
+            'last_name': {'required': False},
+        }
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Passwords do not match."})
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('password2')
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+        )
+        user.is_staff = True  # Make sure the created user is a staff user
+        user.save()
         return user
 
 class CustomAuthTokenSerializer(serializers.Serializer):
