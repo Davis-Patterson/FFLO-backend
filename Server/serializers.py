@@ -1,13 +1,13 @@
 from rest_framework import serializers
-from .models import Category, Book, Image, BookRental
+from .models import Category, Book, BookImage, BookRental
 from Accounts.models import CustomUser
-from Accounts.serializers import TransactionSerializer
+from Payments.serializers import PaymentSerializer
 
-class ImageSerializer(serializers.ModelSerializer):
+class BookImageSerializer(serializers.ModelSerializer):
     image_file = serializers.ImageField(write_only=True, required=False)
 
     class Meta:
-        model = Image
+        model = BookImage
         fields = ['image_url', 'image_file']
         read_only_fields = ['image_url']
 
@@ -18,12 +18,12 @@ class UserRentalSerializer(serializers.ModelSerializer):
 
 class CurrentRentalSerializer(serializers.ModelSerializer):
     user = UserRentalSerializer(read_only=True)
-    transaction = TransactionSerializer(read_only=True)
+    payment = PaymentSerializer(read_only=True)
     free = serializers.BooleanField()
 
     class Meta:
         model = BookRental
-        fields = ['user', 'rental_date', 'return_date', 'free', 'transaction']
+        fields = ['user', 'rental_date', 'return_date', 'free', 'payment']
 
 class CategorySerializer(serializers.ModelSerializer):
     books = serializers.StringRelatedField(many=True)
@@ -38,7 +38,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
 class BookSerializer(serializers.ModelSerializer):
     id = serializers.ReadOnlyField()
-    images = ImageSerializer(many=True, required=False)
+    images = BookImageSerializer(many=True, required=False)
     created_date = serializers.ReadOnlyField()
     flair = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     categories = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), many=True)
@@ -58,13 +58,13 @@ class BookSerializer(serializers.ModelSerializer):
         # Handle image uploads
         for image_data in images_data:
             image_file = image_data.pop('image_file')
-            Image.objects.create(book=book, image_file=image_file)
+            BookImage.objects.create(book=book, image_file=image_file)
 
         return book
 
 class BookDetailSerializer(serializers.ModelSerializer):
     id = serializers.ReadOnlyField()
-    images = ImageSerializer(many=True, required=False)
+    images = BookImageSerializer(many=True, required=False)
     created_date = serializers.ReadOnlyField()
     flair = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     categories = serializers.StringRelatedField(many=True)

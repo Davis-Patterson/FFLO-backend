@@ -1,12 +1,24 @@
-from Accounts.models import Membership, Transaction
+from .models import UserImage, CustomUser, Membership
+from rest_framework import serializers
+from Payments.serializers import PaymentSerializer
 from Server.models import BookRental
 from django.contrib.auth import get_user_model, authenticate
-from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.utils.crypto import get_random_string
 from django.core.mail import send_mail
+from django.utils import timezone
+from datetime import timedelta
 
 User = get_user_model()
+
+class UserImageSerializer(serializers.ModelSerializer):
+    image_file = serializers.ImageField(write_only=True, required=False)
+
+    class Meta:
+        model = UserImage
+        fields = ['image_url', 'image_file']
+        read_only_fields = ['image_url']
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
@@ -19,10 +31,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'password', 'password2', 'first_name', 'last_name', 'joined_date')
+        fields = ('id', 'email', 'password', 'password2', 'first_name', 'last_name', 'phone', 'joined_date')
         extra_kwargs = {
             'first_name': {'required': True},
             'last_name': {'required': False},
+            'phone': {'required': False},
         }
 
     def validate(self, attrs):
@@ -35,6 +48,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
+
 class CurrentBookSerializer(serializers.ModelSerializer):
     free = serializers.BooleanField()
 
@@ -42,26 +56,24 @@ class CurrentBookSerializer(serializers.ModelSerializer):
         model = BookRental
         fields = ['book', 'rental_date', 'return_date', 'free']
 
-class TransactionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Transaction
-        fields = ['transaction_date', 'amount', 'item']
 
 class CurrentMembershipSerializer(serializers.ModelSerializer):
-    transaction_history = TransactionSerializer(many=True, read_only=True)
+    transaction_history = PaymentSerializer(many=True, read_only=True)
     recurrence = serializers.DateField()
 
     class Meta:
         model = Membership
         fields = ['start_date', 'end_date', 'free_books_used', 'active', 'recurrence', 'transaction_history']
 
+
 class UserInfoSerializer(serializers.ModelSerializer):
     checked_out = serializers.SerializerMethodField()
     membership = serializers.SerializerMethodField()
+    image = UserImageSerializer(required=False)
 
     class Meta:
-        model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'joined_date', 'membership', 'checked_out']
+        model = CustomUser
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'checked_out']
         read_only_fields = ['id', 'email', 'joined_date']
 
     def get_membership(self, obj):
@@ -75,17 +87,19 @@ class UserInfoSerializer(serializers.ModelSerializer):
         if current_books.exists():
             return CurrentBookSerializer(current_books, many=True).data
         return []
+
 
 class UserDetailSerializer(serializers.ModelSerializer):
     checked_out = serializers.SerializerMethodField()
     membership = serializers.SerializerMethodField()
     membership_history = CurrentMembershipSerializer(many=True, read_only=True, source='memberships')
-    transaction_history = TransactionSerializer(many=True, read_only=True, source='transactions')
+    transaction_history = PaymentSerializer(many=True, read_only=True, source='payments')
     book_history = CurrentBookSerializer(many=True, read_only=True, source='rented_books')
+    image = UserImageSerializer(required=False)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'book_history']
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'book_history']
         read_only_fields = ['id', 'email', 'joined_date']
 
     def get_membership(self, obj):
@@ -99,6 +113,42 @@ class UserDetailSerializer(serializers.ModelSerializer):
         if current_books.exists():
             return CurrentBookSerializer(current_books, many=True).data
         return []
+
+
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    image_file = serializers.ImageField(write_only=True, required=False)
+
+    class Meta:
+        model = CustomUser
+        fields = ['first_name', 'last_name', 'phone', 'image_file']  # Include image_file for upload
+        extra_kwargs = {
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+            'phone': {'required': False},
+        }
+
+    def update(self, instance, validated_data):
+        image_file = validated_data.pop('image_file', None)
+
+        # Update basic user information
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
+        instance.phone = validated_data.get('phone', instance.phone)
+        instance.save()
+
+        # Handle image upload
+        if image_file:
+            # Check if the user already has an image, update it
+            if hasattr(instance, 'image'):
+                user_image = instance.image
+            else:
+                user_image = UserImage(user=instance)  # Create a new UserImage instance if not exist
+
+            # Save the image using the provided file
+            user_image.save(image_file=image_file)
+
+        return instance
+
 
 class StaffUserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
@@ -133,6 +183,7 @@ class StaffUserRegistrationSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
+
 class CustomAuthTokenSerializer(serializers.Serializer):
     email = serializers.EmailField(label="Email")
     password = serializers.CharField(
@@ -156,6 +207,7 @@ class CustomAuthTokenSerializer(serializers.Serializer):
 
         attrs['user'] = user
         return attrs
+
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True, write_only=True)
@@ -182,6 +234,7 @@ class PasswordChangeSerializer(serializers.Serializer):
         user = self.context['request'].user
         user.set_password(self.validated_data['new_password'])
         user.save()
+
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -212,6 +265,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
             fail_silently=False,
         )
 
+
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
     reset_code = serializers.CharField(required=True)
@@ -235,6 +289,7 @@ class PasswordResetSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.reset_code = None  # Clear the reset code
         user.save()
+
 
 class CreateMembershipSerializer(serializers.ModelSerializer):
     class Meta:

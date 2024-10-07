@@ -4,9 +4,10 @@ from django.db import models
 from django.conf import settings
 from django.core.files.storage import default_storage
 from storages.backends.s3boto3 import S3Boto3Storage
-from Accounts.models import CustomUser, Transaction
+from Accounts.models import CustomUser
+from Payments.models import Payment
 from django.utils import timezone
-from .utils import convert_to_webp
+from utils import convert_to_webp
 
 print(default_storage.__class__.__name__)
 
@@ -16,6 +17,7 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class Book(models.Model):
     title = models.CharField(max_length=255)
@@ -31,7 +33,8 @@ class Book(models.Model):
     def __str__(self):
         return self.title
 
-class Image(models.Model):
+
+class BookImage(models.Model):
     book = models.ForeignKey(Book, related_name="images", on_delete=models.CASCADE)
     image_url = models.URLField(blank=True, null=True)
 
@@ -54,14 +57,13 @@ class Image(models.Model):
                 # Strip the original file extension and add a unique suffix
                 filename_without_extension = os.path.splitext(image_file.name)[0]  # Remove extension
                 unique_suffix = str(uuid.uuid4())  # Generate a unique suffix
-                s3_filename = f"{filename_without_extension}_{unique_suffix}.webp"
                 
-                # Ensure we're not duplicating the 'books' path
-                webp_image_url = f"{s3_filename}"
-
+                # **Prepend the 'books/' folder path**
+                s3_filename = f"books/{filename_without_extension}_{unique_suffix}.webp"
+                
                 # Upload to S3 and get the URL
                 with open(webp_image_path, 'rb') as webp_file:
-                    saved_path = s3_storage.save(webp_image_url, webp_file)
+                    saved_path = s3_storage.save(s3_filename, webp_file)
 
                 # Set the image URL in the model
                 self.image_url = f'{settings.MEDIA_URL}{s3_filename}'
@@ -76,7 +78,8 @@ class Image(models.Model):
                 if os.path.exists(webp_image_path):
                     os.remove(webp_image_path)
 
-        super(Image, self).save(*args, **kwargs)
+        super(BookImage, self).save(*args, **kwargs)
+
 
 class BookRental(models.Model):
     book = models.ForeignKey(Book, related_name="rentals", on_delete=models.CASCADE)
@@ -84,7 +87,7 @@ class BookRental(models.Model):
     rental_date = models.DateTimeField(default=timezone.now)
     return_date = models.DateTimeField(blank=True, null=True)
     free = models.BooleanField(default=False)
-    transaction = models.ForeignKey('Accounts.Transaction', related_name="rentals", on_delete=models.SET_NULL, null=True, blank=True)
+    payment = models.ForeignKey(Payment, related_name="rentals", on_delete=models.SET_NULL, null=True, blank=True)
 
     def is_returned(self):
         return self.return_date is not None
