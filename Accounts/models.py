@@ -40,7 +40,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     joined_date = models.DateTimeField(auto_now_add=True)
-    reset_code = models.CharField(max_length=6, blank=True, null=True)
+    stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
     archived = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'email'
@@ -50,6 +50,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
 
     def reset_free_books(self):
         self.free_books = 0
@@ -116,7 +117,7 @@ class Membership(models.Model):
     start_date = models.DateField(auto_now_add=True)
     end_date = models.DateField(null=True, blank=True)
     active = models.BooleanField(default=True)
-    free_books_used = models.IntegerField(default=0)
+    monthly_books = models.IntegerField(default=0)
     transaction_history = models.ManyToManyField('Payments.Payment', related_name='membership_history', blank=True)
     recurrence = models.DateField(null=True, blank=True)
     membership_price = models.DecimalField(max_digits=6, decimal_places=2, default=35.00)  # Membership price field

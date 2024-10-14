@@ -1,7 +1,7 @@
 from .models import UserImage, CustomUser, Membership
 from rest_framework import serializers
 from Payments.serializers import PaymentSerializer
-from Server.models import BookRental
+from Server.models import BookRental, BookHold
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.utils.crypto import get_random_string
@@ -50,11 +50,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class CurrentBookSerializer(serializers.ModelSerializer):
-    free = serializers.BooleanField()
-
     class Meta:
         model = BookRental
-        fields = ['book', 'rental_date', 'return_date', 'free']
+        fields = ['book', 'rental_date', 'return_date']
 
 
 class CurrentMembershipSerializer(serializers.ModelSerializer):
@@ -63,17 +61,18 @@ class CurrentMembershipSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Membership
-        fields = ['start_date', 'end_date', 'free_books_used', 'active', 'recurrence', 'transaction_history']
+        fields = ['start_date', 'end_date', 'monthly_books', 'active', 'recurrence', 'transaction_history']
 
 
 class UserInfoSerializer(serializers.ModelSerializer):
     checked_out = serializers.SerializerMethodField()
+    on_hold = serializers.SerializerMethodField()
     membership = serializers.SerializerMethodField()
     image = UserImageSerializer(required=False)
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'checked_out']
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'checked_out', 'on_hold']
         read_only_fields = ['id', 'email', 'joined_date']
 
     def get_membership(self, obj):
@@ -83,10 +82,23 @@ class UserInfoSerializer(serializers.ModelSerializer):
         return None
 
     def get_checked_out(self, obj):
+        # Check if user is staff
+        if obj.is_staff:
+            return None  # Staff shouldn't have checked out books themselves
+
+        # For regular members, show currently checked-out books
         current_books = obj.rented_books.filter(return_date__isnull=True)
         if current_books.exists():
             return CurrentBookSerializer(current_books, many=True).data
         return []
+
+    def get_on_hold(self, obj):
+        # For staff members, show books they have placed on hold
+        if obj.is_staff:
+            held_books = BookHold.objects.filter(user=obj)  # Assuming BookHold is the model for holds
+            if held_books.exists():
+                return CurrentBookSerializer(held_books, many=True).data
+        return None
 
 
 class UserDetailSerializer(serializers.ModelSerializer):
@@ -95,11 +107,12 @@ class UserDetailSerializer(serializers.ModelSerializer):
     membership_history = CurrentMembershipSerializer(many=True, read_only=True, source='memberships')
     transaction_history = PaymentSerializer(many=True, read_only=True, source='payments')
     book_history = CurrentBookSerializer(many=True, read_only=True, source='rented_books')
+    on_hold = serializers.SerializerMethodField()
     image = UserImageSerializer(required=False)
 
     class Meta:
-        model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'book_history']
+        model = CustomUser
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'book_history', 'on_hold']
         read_only_fields = ['id', 'email', 'joined_date']
 
     def get_membership(self, obj):
@@ -109,10 +122,18 @@ class UserDetailSerializer(serializers.ModelSerializer):
         return None
 
     def get_checked_out(self, obj):
+        # Show all checked-out books
         current_books = obj.rented_books.filter(return_date__isnull=True)
         if current_books.exists():
             return CurrentBookSerializer(current_books, many=True).data
         return []
+
+    def get_on_hold(self, obj):
+        # Show all books the user has placed on hold (staff only)
+        held_books = BookHold.objects.filter(user=obj)
+        if held_books.exists():
+            return CurrentBookSerializer(held_books, many=True).data
+        return None
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):

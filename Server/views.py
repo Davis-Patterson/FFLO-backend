@@ -1,6 +1,6 @@
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.response import Response
-from .models import Category, Book, BookRental, BookImage
+from .models import Category, Book, BookHold, BookRental, BookImage
 from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
@@ -50,40 +50,122 @@ class BookDetailView(generics.RetrieveAPIView):
     lookup_field = 'id'
     permission_classes = [IsStaffPermission]
 
-def rental_request(user, book_ids):
-    books = Book.objects.filter(id__in=book_ids)
-    active_membership = user.memberships.filter(active=True).first()
-    free_books_remaining = 2 - active_membership.free_books_used if active_membership else 0
 
-    total_rental_amount = 0
-    free_books_used = 0
-    book_availability = []
+class HoldBookView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, IsStaffPermission]
 
-    for book in books:
+    def post(self, request, *args, **kwargs):
+        book_id = request.data.get('book_id')
+        if not book_id:
+            return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Find the book
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if the book is available
         if book.available <= 0:
-            return {"error": f"No copies available for book {book.title}"}
+            return Response({"error": f"No available copies for {book.title}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        is_free = free_books_remaining > 0
+        # Ensure the book is not already on hold
+        active_holds = book.holds.filter(hold_date__isnull=False)
+        if active_holds.exists():
+            return Response({"error": f"Book '{book.title}' is already on hold"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if is_free:
-            free_books_used += 1
-            free_books_remaining -= 1
-        else:
-            total_rental_amount += book.rental_price
+        # Create the book hold
+        BookHold.objects.create(
+            book=book,
+            staff_member=request.user,
+            hold_date=timezone.now()
+        )
 
-        book_availability.append({
-            "book_id": book.id,
-            "title": book.title,
-            "free": is_free,
-            "price": 0.00 if is_free else book.rental_price,
-            "available_copies": book.available
-        })
+        # Update the book's availability
+        book.available -= 1
+        book.save()
 
-    return {
-        "book_availability": book_availability,
-        "total_rental_amount": total_rental_amount,
-        "free_books_used": free_books_used
-    }
+        return Response({"detail": f"Book '{book.title}' has been placed on hold by {request.user.email}."}, status=status.HTTP_200_OK)
+
+
+class RentBookView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        book_id = request.data.get('book_id')
+        if not book_id:
+            return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Find the book
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if the book is available
+        if book.available <= 0:
+            return Response({"error": f"No available copies for {book.title}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check user's membership
+        active_membership = request.user.memberships.filter(active=True).first()
+        if not active_membership:
+            return Response({"error": "User does not have an active membership"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Check if user has already rented 4 books this month
+        if active_membership.monthly_books >= 4:
+            return Response({"error": "You have reached your limit of 4 books for this month"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Ensure the user hasn't already rented a book that hasn't been returned
+        active_rentals = BookRental.objects.filter(user=request.user, return_date__isnull=True)
+        if active_rentals.exists():
+            return Response({"error": "You already have an active rental"}, status=status.HTTP_403_FORBIDDEN)
+
+        # All checks passed, create the book rental
+        BookRental.objects.create(
+            book=book,
+            user=request.user,
+            rental_date=timezone.now(),
+            due_date=timezone.now() + timezone.timedelta(days=7)  # Set the due date to 7 days after rental
+        )
+
+        # Update book availability and membership count
+        book.available -= 1
+        book.save()
+
+        active_membership.monthly_books += 1
+        active_membership.save()
+
+        return Response({"detail": f"Book '{book.title}' rented successfully."}, status=status.HTTP_200_OK)
+
+
+class RemoveHoldView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+    def post(self, request, *args, **kwargs):
+        book_id = request.data.get('book_id')
+        if not book_id:
+            return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Find the book
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Find the active hold for this book
+        hold = book.holds.filter(hold_date__isnull=False).first()
+
+        if not hold:
+            return Response({"error": f"No active hold found for {book.title}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Remove the hold
+        hold.delete()
+
+        # Update the book's availability
+        book.available += 1
+        book.save()
+
+        return Response({"detail": f"Hold on book '{book.title}' removed successfully."}, status=status.HTTP_200_OK)
 
 
 class ReturnBookView(generics.GenericAPIView):

@@ -9,8 +9,6 @@ from Payments.models import Payment
 from django.utils import timezone
 from utils import convert_to_webp
 
-print(default_storage.__class__.__name__)
-
 class Category(models.Model):
     name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True, null=True)
@@ -28,10 +26,12 @@ class Book(models.Model):
     flair = models.CharField(max_length=10, blank=True, null=True)
     archived = models.BooleanField(default=False)
     categories = models.ManyToManyField(Category, related_name='books', blank=True)
-    rental_price = models.DecimalField(max_digits=6, decimal_places=2, default=5.00)
 
     def __str__(self):
         return self.title
+
+    def is_on_hold(self):
+        return bool(self.on_hold_by)
 
 
 class BookImage(models.Model):
@@ -85,9 +85,22 @@ class BookRental(models.Model):
     book = models.ForeignKey(Book, related_name="rentals", on_delete=models.CASCADE)
     user = models.ForeignKey(CustomUser, related_name="rented_books", on_delete=models.CASCADE)
     rental_date = models.DateTimeField(default=timezone.now)
+    due_date = models.DateTimeField(blank=True, null=True)
     return_date = models.DateTimeField(blank=True, null=True)
-    free = models.BooleanField(default=False)
-    payment = models.ForeignKey(Payment, related_name="rentals", on_delete=models.SET_NULL, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.due_date:
+            self.due_date = self.rental_date + timezone.timedelta(days=7)
+        super(BookRental, self).save(*args, **kwargs)
 
     def is_returned(self):
         return self.return_date is not None
+
+
+class BookHold(models.Model):
+    book = models.ForeignKey(Book, related_name="holds", on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'is_staff': True})
+    hold_date = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"{self.book.title} held by {self.user.first_name} on {self.hold_date} (email: {self.user.email})"

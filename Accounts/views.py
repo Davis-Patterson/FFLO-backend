@@ -1,3 +1,5 @@
+import stripe
+from django.conf import settings
 from django.shortcuts import render
 from rest_framework import generics, permissions, status, permissions
 from .serializers import UserRegistrationSerializer, UserInfoSerializer, UserDetailSerializer, UserProfileUpdateSerializer, CustomAuthTokenSerializer, PasswordChangeSerializer, PasswordResetRequestSerializer, PasswordResetSerializer, StaffUserRegistrationSerializer, CreateMembershipSerializer
@@ -11,6 +13,7 @@ from .models import Membership
 from Payments.models import Payment
 
 User = get_user_model()
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 class IsStaffPermission(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -21,6 +24,17 @@ class UserRegistrationView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = UserRegistrationSerializer
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+
+        # stripe_customer = stripe.Customer.create(
+        #     email=user.email,
+        #     name=f"{user.first_name} {user.last_name}"
+        # )
+
+        # user.stripe_customer_id = stripe_customer['id']
+        # user.save()
 
 
 class CreateStaffUserView(generics.CreateAPIView):
@@ -98,7 +112,7 @@ class MembershipInfoView(APIView):
         if active_membership:
             return Response({
                 "active_membership": True,
-                "free_books_used": active_membership.free_books_used,
+                "monthly_books": active_membership.monthly_books,
                 "next_payment_date": active_membership.recurrence
             })
         else:
@@ -179,14 +193,14 @@ class CreateMembershipView(generics.GenericAPIView):
         return Response({"detail": "Membership created successfully."}, status=status.HTTP_201_CREATED)
 
 
-class ResetFreeBooksView(APIView):
+class ResetMonthlyBooksView(APIView):
     permission_classes = [IsStaffPermission]
 
     def post(self, request, *args, **kwargs):
         active_memberships = Membership.objects.filter(active=True)
 
         for membership in active_memberships:
-            membership.free_books_used = 0
+            membership.monthly_books = 0 
             membership.save()
 
-        return Response({"detail": "Free books count has been reset for all active memberships."}, status=200)
+        return Response({"detail": "Monthly books count has been reset for all active memberships."}, status=200)
