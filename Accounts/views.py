@@ -137,7 +137,7 @@ class LogoutView(APIView):
                     token.delete()
                     return Response({"detail": "Logout successful."}, status=status.HTTP_200_OK)
             except Token.DoesNotExist:
-                return Response({"detail": "Invalid or expired token."}, status=status.HTTP_200_OK)
+                return Response({"detail": "Invalid or expired token."}, status=status.HTTP_401_UNAUTHORIZED)
 
         return Response({"detail": "No token provided."}, status=status.HTTP_400_BAD_REQUEST)
 
