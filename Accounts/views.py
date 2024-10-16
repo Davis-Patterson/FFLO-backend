@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.authentication import BasicAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import Membership
 from Payments.models import Payment
@@ -122,11 +123,23 @@ class MembershipInfoView(APIView):
 
 
 class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
-        request.user.auth_token.delete()
-        return Response(status=status.HTTP_200_OK)
+        auth_header = request.META.get('HTTP_AUTHORIZATION', None)
+
+        if auth_header:
+            try:
+                token_key = auth_header.split()[1] if 'Token' in auth_header else None
+                if token_key:
+                    token = Token.objects.get(key=token_key)
+                    token.delete()
+                    return Response({"detail": "Logout successful."}, status=status.HTTP_200_OK)
+            except Token.DoesNotExist:
+                return Response({"detail": "Invalid or expired token."}, status=status.HTTP_200_OK)
+
+        return Response({"detail": "No token provided."}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PasswordChangeView(generics.UpdateAPIView):

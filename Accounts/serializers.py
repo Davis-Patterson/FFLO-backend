@@ -65,14 +65,15 @@ class CurrentMembershipSerializer(serializers.ModelSerializer):
 
 
 class UserInfoSerializer(serializers.ModelSerializer):
+    image = UserImageSerializer(required=False)
+    membership = serializers.SerializerMethodField()
     checked_out = serializers.SerializerMethodField()
     on_hold = serializers.SerializerMethodField()
-    membership = serializers.SerializerMethodField()
-    image = UserImageSerializer(required=False)
+    book_history = CurrentBookSerializer(many=True, read_only=True, source='rented_books')
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'checked_out', 'on_hold']
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'checked_out', 'on_hold', 'book_history']
         read_only_fields = ['id', 'email', 'joined_date']
 
     def get_membership(self, obj):
@@ -112,7 +113,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'book_history', 'on_hold']
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'on_hold', 'book_history']
         read_only_fields = ['id', 'email', 'joined_date']
 
     def get_membership(self, obj):
