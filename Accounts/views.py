@@ -2,7 +2,7 @@ import stripe
 from django.conf import settings
 from django.shortcuts import render
 from rest_framework import generics, permissions, status, permissions
-from .serializers import UserRegistrationSerializer, UserInfoSerializer, UserDetailSerializer, UserProfileUpdateSerializer, CustomAuthTokenSerializer, PasswordChangeSerializer, PasswordResetRequestSerializer, PasswordResetSerializer, StaffUserRegistrationSerializer, CreateMembershipSerializer
+from .serializers import UserRegistrationSerializer, UserInfoSerializer, UserDetailSerializer, UserProfileUpdateSerializer, CustomAuthTokenSerializer, PasswordChangeSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, PasswordResetSerializer, StaffUserRegistrationSerializer, CreateMembershipSerializer
 from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -164,15 +164,26 @@ class PasswordResetRequestView(generics.GenericAPIView):
         return Response({"detail": "Password reset code sent"}, status=status.HTTP_200_OK)
 
 
-class PasswordResetView(generics.GenericAPIView):
-    serializer_class = PasswordResetSerializer
+class PasswordResetConfirmView(APIView):
     permission_classes = [permissions.AllowAny]
+    serializer_class = PasswordResetConfirmSerializer
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        return Response({"detail": "Reset code confirmed."}, status=status.HTTP_200_OK)
+
+
+class PasswordResetView(APIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = PasswordResetSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({"detail": "Password has been reset successfully"}, status=status.HTTP_200_OK)
+        return Response({"detail": "Password has been reset successfully."}, status=status.HTTP_200_OK)
 
 
 class CreateMembershipView(generics.GenericAPIView):

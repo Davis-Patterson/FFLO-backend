@@ -288,6 +288,18 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         )
 
 
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    reset_code = serializers.CharField(required=True)
+
+    def validate(self, data):
+        # Check if a user exists with this email and reset code
+        user = User.objects.filter(email=data['email'], reset_code=data['reset_code']).first()
+        if not user:
+            raise serializers.ValidationError("Invalid reset code or email.")
+        return data
+
+
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
     reset_code = serializers.CharField(required=True)
