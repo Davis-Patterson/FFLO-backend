@@ -21,6 +21,18 @@ class IsStaffPermission(permissions.BasePermission):
         return request.user.is_authenticated and request.user.is_staff
 
 
+class VerifyTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        user_data = UserInfoSerializer(user).data
+        return Response({
+            "detail": "Token is valid.",
+            "user_info": user_data
+        }, status=status.HTTP_200_OK)
+
+
 class UserRegistrationView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = [permissions.AllowAny]
