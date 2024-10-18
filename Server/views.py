@@ -14,7 +14,7 @@ class IsStaffPermission(permissions.BasePermission):
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsStaffPermission]
 
 
 class BookCategoryUpdateView(generics.UpdateAPIView):
@@ -32,9 +32,15 @@ class BookCategoryUpdateView(generics.UpdateAPIView):
 
 
 class BookListView(generics.ListAPIView):
-    queryset = Book.objects.all()
     serializer_class = BookSerializer
     permission_classes = []
+
+    def get_queryset(self):
+        queryset = Book.objects.all()
+        category_id = self.request.query_params.get('category_id', None)
+        if category_id:
+            queryset = queryset.filter(categories__id=category_id)
+        return queryset
 
 
 class BookInfoView(generics.RetrieveAPIView):
@@ -59,29 +65,24 @@ class HoldBookView(generics.GenericAPIView):
         if not book_id:
             return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Find the book
         try:
             book = Book.objects.get(id=book_id)
         except Book.DoesNotExist:
             return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if the book is available
         if book.available <= 0:
             return Response({"error": f"No available copies for {book.title}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Ensure the book is not already on hold
         active_holds = book.holds.filter(hold_date__isnull=False)
         if active_holds.exists():
             return Response({"error": f"Book '{book.title}' is already on hold"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create the book hold
         BookHold.objects.create(
             book=book,
             staff_member=request.user,
             hold_date=timezone.now()
         )
 
-        # Update the book's availability
         book.available -= 1
         book.save()
 
