@@ -26,12 +26,12 @@ class CurrentRentalSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    books = serializers.StringRelatedField(many=True)
+    books = serializers.StringRelatedField(many=True, read_only=True)
     quantity = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'books', 'quantity']
+        fields = ['id', 'name', 'description', 'books', 'quantity']
 
     def get_quantity(self, obj):
         return obj.books.count()

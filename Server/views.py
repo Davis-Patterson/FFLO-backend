@@ -16,6 +16,35 @@ class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated, IsStaffPermission]
 
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        if self.action in ['create', 'destroy', 'update']:
+            return [IsStaffPermission()]
+        return [IsStaffPermission()]
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+
+        categories = Category.objects.all()
+        serializer = self.get_serializer(categories, many=True)
+
+        return Response({
+            'message': 'Category created successfully',
+            'categories': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+
+        categories = Category.objects.all()
+        serializer = self.get_serializer(categories, many=True)
+
+        return Response({
+            'message': 'Category updated successfully',
+            'categories': serializer.data
+        }, status=status.HTTP_200_OK)
+
 
 class BookCategoryUpdateView(generics.UpdateAPIView):
     queryset = Book.objects.all()
@@ -29,6 +58,11 @@ class BookCategoryUpdateView(generics.UpdateAPIView):
         book.categories.set(categories)  # Update the book's categories
         book.save()
         return Response({"detail": "Book categories updated successfully"})
+
+    def destroy(self, request, *args, **kwargs):
+        category = self.get_object()
+        category.delete()
+        return Response({"message": "Category deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
 class BookListView(generics.ListAPIView):
