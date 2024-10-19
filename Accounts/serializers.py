@@ -16,8 +16,8 @@ class UserImageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserImage
-        fields = ['image_url', 'image_file']
-        read_only_fields = ['image_url']
+        fields = ['image_url', 'image_small', 'image_file']
+        read_only_fields = ['image_url', 'image_small']
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -138,11 +138,12 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    image = UserImageSerializer(required=False)
     image_file = serializers.ImageField(write_only=True, required=False)
 
     class Meta:
         model = CustomUser
-        fields = ['first_name', 'last_name', 'phone', 'image_file']  # Include image_file for upload
+        fields = ['first_name', 'last_name', 'phone', 'image', 'image_file']
         extra_kwargs = {
             'first_name': {'required': False},
             'last_name': {'required': False},
@@ -152,24 +153,23 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         image_file = validated_data.pop('image_file', None)
 
-        # Update basic user information
         instance.first_name = validated_data.get('first_name', instance.first_name)
         instance.last_name = validated_data.get('last_name', instance.last_name)
         instance.phone = validated_data.get('phone', instance.phone)
         instance.save()
 
-        # Handle image upload
         if image_file:
-            # Check if the user already has an image, update it
             if hasattr(instance, 'image'):
                 user_image = instance.image
             else:
-                user_image = UserImage(user=instance)  # Create a new UserImage instance if not exist
+                user_image = UserImage(user=instance)
 
-            # Save the image using the provided file
             user_image.save(image_file=image_file)
 
         return instance
+
+    def to_representation(self, instance):
+        return UserInfoSerializer(instance).data
 
 
 class StaffUserRegistrationSerializer(serializers.ModelSerializer):

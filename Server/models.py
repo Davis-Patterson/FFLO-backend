@@ -7,7 +7,7 @@ from storages.backends.s3boto3 import S3Boto3Storage
 from Accounts.models import CustomUser
 from Payments.models import Payment
 from django.utils import timezone
-from utils import convert_to_webp
+from utils import convert_to_webp, create_small_image
 
 class Category(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -37,46 +37,49 @@ class Book(models.Model):
 class BookImage(models.Model):
     book = models.ForeignKey(Book, related_name="images", on_delete=models.CASCADE)
     image_url = models.URLField(blank=True, null=True)
+    image_small = models.URLField(blank=True, null=True)
 
     def save(self, *args, **kwargs):
         image_file = kwargs.pop('image_file', None)
         if image_file:
-            # Save the image file temporarily
             temp_image_path = f"/tmp/{image_file.name}"
+            temp_small_image_path = f"/tmp/{image_file.name}_small.webp"
+            
             try:
                 with open(temp_image_path, 'wb') as temp_image:
                     temp_image.write(image_file.read())
 
-                # Convert the image to .webp
                 webp_image_path = f"{temp_image_path}.webp"
                 convert_to_webp(temp_image_path, webp_image_path)
 
-                # Create an S3Boto3Storage instance
+                create_small_image(temp_image_path, temp_small_image_path)
+
                 s3_storage = S3Boto3Storage()
 
-                # Strip the original file extension and add a unique suffix
-                filename_without_extension = os.path.splitext(image_file.name)[0]  # Remove extension
-                unique_suffix = str(uuid.uuid4())  # Generate a unique suffix
-                
-                # **Prepend the 'books/' folder path**
+                filename_without_extension = os.path.splitext(image_file.name)[0]
+                unique_suffix = str(uuid.uuid4())
+
                 s3_filename = f"books/{filename_without_extension}_{unique_suffix}.webp"
+                s3_small_filename = f"books/{filename_without_extension}_small_{unique_suffix}.webp"
                 
-                # Upload to S3 and get the URL
                 with open(webp_image_path, 'rb') as webp_file:
                     saved_path = s3_storage.save(s3_filename, webp_file)
+                    self.image_url = f'{settings.MEDIA_URL}{s3_filename}'
 
-                # Set the image URL in the model
-                self.image_url = f'{settings.MEDIA_URL}{s3_filename}'
+                with open(temp_small_image_path, 'rb') as small_webp_file:
+                    small_saved_path = s3_storage.save(s3_small_filename, small_webp_file)
+                    self.image_small = f'{settings.MEDIA_URL}{s3_small_filename}'
 
             except Exception as e:
                 print(f"Error while uploading image to S3: {str(e)}")
 
             finally:
-                # Clean up the temporary files
                 if os.path.exists(temp_image_path):
                     os.remove(temp_image_path)
                 if os.path.exists(webp_image_path):
                     os.remove(webp_image_path)
+                if os.path.exists(temp_small_image_path):
+                    os.remove(temp_small_image_path)
 
         super(BookImage, self).save(*args, **kwargs)
 

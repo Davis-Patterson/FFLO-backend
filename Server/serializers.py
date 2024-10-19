@@ -7,8 +7,8 @@ class BookImageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BookImage
-        fields = ['image_url', 'image_file']
-        read_only_fields = ['image_url']
+        fields = ['image_url', 'image_small', 'image_file']
+        read_only_fields = ['image_url', 'image_small']
 
 
 class UserRentalSerializer(serializers.ModelSerializer):

@@ -104,15 +104,7 @@ class UpdateProfileView(generics.UpdateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        # Returning only the updated fields (first_name, last_name, phone, image)
-        updated_data = {
-            'first_name': instance.first_name,
-            'last_name': instance.last_name,
-            'phone': instance.phone,
-            'image': instance.image.image_url if hasattr(instance, 'image') else None
-        }
-
-        return Response(updated_data, status=status.HTTP_200_OK)
+        return Response(UserInfoSerializer(instance).data, status=status.HTTP_200_OK)
 
 
 class MembershipInfoView(APIView):
