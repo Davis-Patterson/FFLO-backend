@@ -20,6 +20,7 @@ class Category(models.Model):
 class Book(models.Model):
     title = models.CharField(max_length=255)
     author = models.CharField(max_length=255)
+    description = models.CharField(max_length=255, blank=True, null=True)
     inventory = models.PositiveIntegerField(default=1)
     available = models.PositiveIntegerField(default=1)
     created_date = models.DateTimeField(auto_now_add=True)

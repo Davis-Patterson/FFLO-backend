@@ -41,6 +41,7 @@ class BookSerializer(serializers.ModelSerializer):
     id = serializers.ReadOnlyField()
     images = BookImageSerializer(many=True, required=False)
     created_date = serializers.ReadOnlyField()
+    description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     flair = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     categories = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), many=True)
     archived = serializers.BooleanField(default=False)
@@ -48,7 +49,7 @@ class BookSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Book
-        fields = ['id', 'title', 'author', 'images', 'inventory', 'available', 'created_date', 'flair', 'categories', 'archived', 'on_hold']
+        fields = ['id', 'title', 'author', 'description', 'images', 'inventory', 'available', 'created_date', 'flair', 'categories', 'archived', 'on_hold']
 
     def get_on_hold(self, obj):
         return obj.holds.filter(hold_date__isnull=False).exists()
@@ -72,6 +73,7 @@ class BookDetailSerializer(serializers.ModelSerializer):
     id = serializers.ReadOnlyField()
     images = BookImageSerializer(many=True, required=False)
     created_date = serializers.ReadOnlyField()
+    description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     flair = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     categories = serializers.StringRelatedField(many=True)
     archived = serializers.BooleanField(default=False)
@@ -80,7 +82,7 @@ class BookDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Book
-        fields = ['id', 'title', 'author', 'images', 'inventory', 'available', 'created_date', 'flair', 'archived', 'categories', 'current_status', 'rental_history']
+        fields = ['id', 'title', 'author', 'description', 'images', 'inventory', 'available', 'created_date', 'flair', 'archived', 'categories', 'current_status', 'rental_history']
 
     def get_current_status(self, obj):
         rentals = obj.rentals.filter(return_date__isnull=True)
