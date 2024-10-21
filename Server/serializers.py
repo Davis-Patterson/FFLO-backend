@@ -4,11 +4,12 @@ from Accounts.models import CustomUser
 
 class BookImageSerializer(serializers.ModelSerializer):
     image_file = serializers.ImageField(write_only=True, required=False)
+    id = serializers.ReadOnlyField()
 
     class Meta:
         model = BookImage
-        fields = ['image_url', 'image_small', 'image_file']
-        read_only_fields = ['image_url', 'image_small']
+        fields = ['id', 'image_url', 'image_small', 'image_file']
+        read_only_fields = ['id', 'image_url', 'image_small']
 
 
 class UserRentalSerializer(serializers.ModelSerializer):

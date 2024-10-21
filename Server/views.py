@@ -4,6 +4,7 @@ from .models import Category, Book, BookHold, BookRental, BookImage
 from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from .serializers import CategorySerializer, BookSerializer, BookDetailSerializer
 
@@ -251,3 +252,69 @@ class DeleteBookView(generics.DestroyAPIView):
         book = self.get_object()
         book.delete()
         return Response({"detail": "Book deleted successfully"}, status=status.HTTP_200_OK)
+
+
+class BookUpdateView(generics.UpdateAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookSerializer
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+    lookup_field = 'id'
+
+    def update(self, request, *args, **kwargs):
+        book = self.get_object()
+        data = request.data
+
+        # Update title and author (ensure these are not empty)
+        title = data.get('title')
+        author = data.get('author')
+
+        if not title:
+            return Response({"detail": "Title cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        if not author:
+            return Response({"detail": "Author cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+
+        book.title = title
+        book.author = author
+        book.description = data.get('description', book.description)
+        book.flair = data.get('flair', book.flair)
+        book.inventory = data.get('inventory', book.inventory)
+        book.available = data.get('available', book.available)
+
+        categories_data = data.get('categories', [])
+        if categories_data:
+            categories = Category.objects.filter(id__in=categories_data)
+            book.categories.set(categories)
+
+        book.save()
+
+        images_to_add = request.FILES.getlist('images')
+        for image_file in images_to_add:
+            image_instance = BookImage(book=book)
+            image_instance.save(image_file=image_file)
+
+        images_to_remove = data.get('images_to_remove', [])
+
+        if isinstance(images_to_remove, str):
+            images_to_remove = images_to_remove.split(',')
+        
+        try:
+            images_to_remove = [int(image_id) for image_id in images_to_remove]
+        except ValueError:
+            return Response({"detail": "Invalid image ID format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Delete the images
+        for image_id in images_to_remove:
+            try:
+                image = BookImage.objects.get(id=image_id, book=book)
+                image.delete()
+            except BookImage.DoesNotExist:
+                return Response({"detail": f"Image with id {image_id} not found for this book."}, status=status.HTTP_404_NOT_FOUND)
+
+        book.refresh_from_db()
+
+        serializer = BookSerializer(book)
+        return Response({
+            "detail": f"Book '{book.title}' updated successfully.",
+            "book": serializer.data
+        }, status=status.HTTP_200_OK)
+

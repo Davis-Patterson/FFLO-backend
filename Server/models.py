@@ -1,5 +1,6 @@
 import os
 import uuid
+import re
 from django.db import models
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -40,12 +41,24 @@ class BookImage(models.Model):
     image_url = models.URLField(blank=True, null=True)
     image_small = models.URLField(blank=True, null=True)
 
+    def clean_filename(self, filename):
+        filename = filename.lower()
+        filename = filename.replace(' ', '_')
+        filename = re.sub(r'[^a-z0-9_\-\.]', '', filename)
+        filename = filename.strip('.')
+        name, ext = os.path.splitext(filename)
+        if len(name) > 100:
+            name = name[:100]
+
+        return f"{name}{ext}"
+
     def save(self, *args, **kwargs):
         image_file = kwargs.pop('image_file', None)
         if image_file:
-            temp_image_path = f"/tmp/{image_file.name}"
-            temp_small_image_path = f"/tmp/{image_file.name}_small.webp"
-            
+            clean_filename = self.clean_filename(image_file.name)
+            temp_image_path = f"/tmp/{clean_filename}"
+            temp_small_image_path = f"/tmp/{clean_filename}_small.webp"
+
             try:
                 with open(temp_image_path, 'wb') as temp_image:
                     temp_image.write(image_file.read())
@@ -57,7 +70,7 @@ class BookImage(models.Model):
 
                 s3_storage = S3Boto3Storage()
 
-                filename_without_extension = os.path.splitext(image_file.name)[0]
+                filename_without_extension = os.path.splitext(clean_filename)[0]
                 unique_suffix = str(uuid.uuid4())
 
                 s3_filename = f"books/{filename_without_extension}_{unique_suffix}.webp"
