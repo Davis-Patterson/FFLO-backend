@@ -13,6 +13,7 @@ DATABASES = {
     )
 }
 
+ALLOWED_HOSTS = ['your-render-app.onrender.com', 'your-custom-domain.com']
 
 # Security settings
 SECURE_SSL_REDIRECT = True
@@ -26,3 +27,10 @@ MIDDLEWARE = [
 
 # Simplified static file serving.
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME')

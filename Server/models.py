@@ -11,16 +11,16 @@ from utils import convert_to_webp, create_small_image
 
 class Category(models.Model):
     name = models.CharField(max_length=255, unique=True)
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         return self.name
 
 
 class Book(models.Model):
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=255, unique=True)
     author = models.CharField(max_length=255)
-    description = models.CharField(max_length=255, blank=True, null=True)
+    description = models.CharField(max_length=1200, blank=True, null=True)
     inventory = models.PositiveIntegerField(default=1)
     available = models.PositiveIntegerField(default=1)
     created_date = models.DateTimeField(auto_now_add=True)
