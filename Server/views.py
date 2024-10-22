@@ -1,9 +1,10 @@
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from .models import Category, Book, BookHold, BookRental, BookImage
 from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotFound
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from .serializers import CategorySerializer, BookSerializer, BookDetailSerializer
@@ -72,7 +73,7 @@ class BookListView(generics.ListAPIView):
     permission_classes = []
 
     def get_queryset(self):
-        queryset = Book.objects.all()
+        queryset = Book.objects.filter(archived=False)
         category_id = self.request.query_params.get('category_id', None)
         if category_id:
             queryset = queryset.filter(categories__id=category_id)
@@ -80,14 +81,14 @@ class BookListView(generics.ListAPIView):
 
 
 class BookInfoView(generics.RetrieveAPIView):
-    queryset = Book.objects.all()
+    queryset = Book.objects.filter(archived=False)
     serializer_class = BookSerializer
     lookup_field = 'id'
     permission_classes = []
 
 
 class BookDetailView(generics.RetrieveAPIView):
-    queryset = Book.objects.all()
+    queryset = Book.objects.filter(archived=False)
     serializer_class = BookDetailSerializer
     lookup_field = 'id'
     permission_classes = [IsStaffPermission]
@@ -318,3 +319,30 @@ class BookUpdateView(generics.UpdateAPIView):
             "book": serializer.data
         }, status=status.HTTP_200_OK)
 
+
+class ToggleArchiveView(APIView):
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+    def post(self, request, id):
+        try:
+            book = Book.objects.get(id=id)
+        except Book.DoesNotExist:
+            raise NotFound("Book not found")
+
+        # Toggle the archived status
+        book.archived = not book.archived
+        book.save()
+
+        status_text = "archived" if book.archived else "unarchived"
+        return Response({
+            "detail": f"Book '{book.title}' has been {status_text}.",
+            "archived": book.archived
+        }, status=status.HTTP_200_OK)
+
+
+class ArchivedBookListView(generics.ListAPIView):
+    serializer_class = BookSerializer
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+    def get_queryset(self):
+        return Book.objects.filter(archived=True)
