@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Category, Book, BookImage, BookRental
 from Accounts.models import CustomUser
+from Common.serializers import UserImageSerializer
 
 class BookImageSerializer(serializers.ModelSerializer):
     image_file = serializers.ImageField(write_only=True, required=False)
@@ -62,12 +63,36 @@ class BookSerializer(serializers.ModelSerializer):
         book = Book.objects.create(**validated_data)
         book.categories.set(categories_data)
 
-        # Handle image uploads
         for image_data in images_data:
             image_file = image_data.pop('image_file')
             BookImage.objects.create(book=book, image_file=image_file)
 
         return book
+
+
+class RentalHistorySerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookRental
+        fields = ['rental_date', 'return_date', 'is_active', 'user']
+
+    def get_user(self, obj):
+        user_image = None
+        if hasattr(obj.user, 'image') and obj.user.image:
+            user_image = UserImageSerializer(obj.user.image).data
+        
+        return {
+            "email": obj.user.email,
+            "first_name": obj.user.first_name,
+            "last_name": obj.user.last_name if obj.user.last_name else "",
+            "phone": obj.user.phone if obj.user.phone else None,
+            "image": user_image
+        }
+
+    def get_is_active(self, obj):
+        return obj.return_date is None
 
 
 class BookDetailSerializer(serializers.ModelSerializer):
@@ -79,7 +104,7 @@ class BookDetailSerializer(serializers.ModelSerializer):
     categories = serializers.StringRelatedField(many=True)
     archived = serializers.BooleanField(default=False)
     current_status = serializers.SerializerMethodField()
-    rental_history = CurrentRentalSerializer(many=True, read_only=True, source='rentals')
+    rental_history = serializers.SerializerMethodField()
 
     class Meta:
         model = Book
@@ -104,14 +129,22 @@ class BookDetailSerializer(serializers.ModelSerializer):
             })
 
         for hold in holds:
+            held_by_image = UserImageSerializer(hold.user.image).data if hold.user.image else None
+
             status_list.append({
                 "status": "on_hold",
                 "hold_date": hold.hold_date,
                 "held_by": {
-                    "email": hold.staff_member.email,
-                    "first_name": hold.staff_member.first_name,
-                    "last_name": hold.staff_member.last_name
+                    "email": hold.user.email,
+                    "first_name": hold.user.first_name,
+                    "last_name": hold.user.last_name,
+                    "image": held_by_image
                 }
             })
 
         return status_list if status_list else None
+
+    def get_rental_history(self, obj):
+        rentals = obj.rentals.all().order_by('-rental_date')
+        return RentalHistorySerializer(rentals, many=True).data
+

@@ -8,7 +8,7 @@ from storages.backends.s3boto3 import S3Boto3Storage
 from Accounts.models import CustomUser
 from Payments.models import Payment
 from django.utils import timezone
-from utils import convert_to_webp, create_small_image
+from Common.utils import convert_to_webp, create_small_image
 
 class Category(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -105,13 +105,14 @@ class BookRental(models.Model):
     due_date = models.DateTimeField(blank=True, null=True)
     return_date = models.DateTimeField(blank=True, null=True)
 
+    @property
+    def is_active(self):
+        return self.return_date is None
+
     def save(self, *args, **kwargs):
         if not self.due_date:
             self.due_date = self.rental_date + timezone.timedelta(days=7)
         super(BookRental, self).save(*args, **kwargs)
-
-    def is_returned(self):
-        return self.return_date is not None
 
 
 class BookHold(models.Model):

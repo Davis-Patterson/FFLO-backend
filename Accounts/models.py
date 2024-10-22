@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.conf import settings
 from django.db import models
-from utils import convert_to_webp, create_user_icon
+from Common.utils import convert_to_webp, create_user_icon
 from storages.backends.s3boto3 import S3Boto3Storage
 
 class CustomUserManager(BaseUserManager):

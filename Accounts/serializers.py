@@ -1,6 +1,8 @@
 from .models import UserImage, CustomUser, Membership
 from rest_framework import serializers
 from Payments.serializers import PaymentSerializer
+from Common.serializers import UserImageSerializer
+from Server.serializers import BookImageSerializer
 from Server.models import BookRental, BookHold
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
@@ -10,14 +12,6 @@ from django.utils import timezone
 from datetime import timedelta
 
 User = get_user_model()
-
-class UserImageSerializer(serializers.ModelSerializer):
-    image_file = serializers.ImageField(write_only=True, required=False)
-
-    class Meta:
-        model = UserImage
-        fields = ['image_url', 'image_small', 'image_file']
-        read_only_fields = ['image_url', 'image_small']
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -64,12 +58,31 @@ class CurrentMembershipSerializer(serializers.ModelSerializer):
         fields = ['start_date', 'end_date', 'monthly_books', 'active', 'recurrence', 'transaction_history']
 
 
-class UserInfoSerializer(serializers.ModelSerializer):
+class BookRentalWithBookSerializer(serializers.ModelSerializer):
+    book = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookRental
+        fields = ['rental_date', 'return_date', 'is_active', 'book']
+
+    def get_is_active(self, obj):
+        return obj.return_date is None
+
+    def get_book(self, obj):
+        return {
+            "id": obj.book.id,
+            "title": obj.book.title,
+            "author": obj.book.author,
+            "image": BookImageSerializer(obj.book.images.all(), many=True).data
+        }
+
+
+class UserInfoSerializer(serializers.ModelSerializer): 
     image = UserImageSerializer(required=False)
     membership = serializers.SerializerMethodField()
     checked_out = serializers.SerializerMethodField()
     on_hold = serializers.SerializerMethodField()
-    book_history = CurrentBookSerializer(many=True, read_only=True, source='rented_books')
+    book_history = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
@@ -83,23 +96,24 @@ class UserInfoSerializer(serializers.ModelSerializer):
         return None
 
     def get_checked_out(self, obj):
-        # Check if user is staff
         if obj.is_staff:
-            return None  # Staff shouldn't have checked out books themselves
+            return None
 
-        # For regular members, show currently checked-out books
         current_books = obj.rented_books.filter(return_date__isnull=True)
         if current_books.exists():
-            return CurrentBookSerializer(current_books, many=True).data
+            return BookRentalWithBookSerializer(current_books, many=True).data
         return []
 
     def get_on_hold(self, obj):
-        # For staff members, show books they have placed on hold
         if obj.is_staff:
-            held_books = BookHold.objects.filter(user=obj)  # Assuming BookHold is the model for holds
+            held_books = BookHold.objects.filter(user=obj)
             if held_books.exists():
-                return CurrentBookSerializer(held_books, many=True).data
+                return BookRentalWithBookSerializer(held_books, many=True).data
         return None
+
+    def get_book_history(self, obj):
+        rental_history = obj.rented_books.all().order_by('-rental_date')
+        return BookRentalWithBookSerializer(rental_history, many=True).data
 
 
 class UserDetailSerializer(serializers.ModelSerializer):
@@ -107,7 +121,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     membership = serializers.SerializerMethodField()
     membership_history = CurrentMembershipSerializer(many=True, read_only=True, source='memberships')
     transaction_history = PaymentSerializer(many=True, read_only=True, source='payments')
-    book_history = CurrentBookSerializer(many=True, read_only=True, source='rented_books')
+    book_history = serializers.SerializerMethodField()
     on_hold = serializers.SerializerMethodField()
     image = UserImageSerializer(required=False)
 
@@ -123,18 +137,20 @@ class UserDetailSerializer(serializers.ModelSerializer):
         return None
 
     def get_checked_out(self, obj):
-        # Show all checked-out books
         current_books = obj.rented_books.filter(return_date__isnull=True)
         if current_books.exists():
-            return CurrentBookSerializer(current_books, many=True).data
+            return BookRentalWithBookSerializer(current_books, many=True).data
         return []
 
     def get_on_hold(self, obj):
-        # Show all books the user has placed on hold (staff only)
         held_books = BookHold.objects.filter(user=obj)
         if held_books.exists():
-            return CurrentBookSerializer(held_books, many=True).data
+            return BookRentalWithBookSerializer(held_books, many=True).data
         return None
+
+    def get_book_history(self, obj):
+        rental_history = obj.rented_books.all().order_by('-rental_date')
+        return BookRentalWithBookSerializer(rental_history, many=True).data
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
@@ -201,7 +217,7 @@ class StaffUserRegistrationSerializer(serializers.ModelSerializer):
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
         )
-        user.is_staff = True  # Make sure the created user is a staff user
+        user.is_staff = True 
         user.save()
         return user
 
@@ -239,15 +255,12 @@ class PasswordChangeSerializer(serializers.Serializer):
     def validate(self, data):
         user = self.context['request'].user
         
-        # Check if the old password is correct
         if not user.check_password(data['old_password']):
             raise serializers.ValidationError({"old_password": "Old password is incorrect"})
 
-        # Check if the new passwords match
         if data['new_password'] != data['new_password2']:
             raise serializers.ValidationError({"new_password": "The two passwords do not match"})
         
-        # Validate the new password (using Django's built-in validators)
         validate_password(data['new_password'], user)
         
         return data
@@ -262,7 +275,6 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate_email(self, value):
-        # Check if a user with this email exists
         if not User.objects.filter(email=value).exists():
             raise serializers.ValidationError("No user is registered with this email address.")
         return value
@@ -271,14 +283,11 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         email = self.validated_data['email']
         user = User.objects.get(email=email)
         
-        # Generate a unique code (e.g., a 6-digit code or token)
         reset_code = get_random_string(length=6, allowed_chars='1234567890')
         
-        # Store this reset code on the user object (or use a separate model for tokens)
         user.reset_code = reset_code
         user.save()
 
-        # Send an email to the user with the reset code
         send_mail(
             subject="Password Reset Request",
             message=f"Your password reset code is: {reset_code}",
@@ -293,7 +302,6 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     reset_code = serializers.CharField(required=True)
 
     def validate(self, data):
-        # Check if a user exists with this email and reset code
         user = User.objects.filter(email=data['email'], reset_code=data['reset_code']).first()
         if not user:
             raise serializers.ValidationError("Invalid reset code or email.")
@@ -307,11 +315,9 @@ class PasswordResetSerializer(serializers.Serializer):
     new_password2 = serializers.CharField(write_only=True, required=True)
 
     def validate(self, data):
-        # Validate the new passwords
         if data['new_password'] != data['new_password2']:
             raise serializers.ValidationError("The two passwords do not match.")
 
-        # Validate that the reset code is correct
         user = User.objects.filter(email=data['email'], reset_code=data['reset_code']).first()
         if not user:
             raise serializers.ValidationError("Invalid reset code or email.")
@@ -321,7 +327,7 @@ class PasswordResetSerializer(serializers.Serializer):
     def save(self):
         user = User.objects.get(email=self.validated_data['email'])
         user.set_password(self.validated_data['new_password'])
-        user.reset_code = None  # Clear the reset code
+        user.reset_code = None
         user.save()
 
 

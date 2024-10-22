@@ -60,14 +60,17 @@ class CustomObtainAuthToken(ObtainAuthToken):
     serializer_class = CustomAuthTokenSerializer
 
     def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data,
-                                           context={'request': request})
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         token, created = Token.objects.get_or_create(user=user)
+        
+        user_data = UserInfoSerializer(user).data
+        
         return Response({
             'token': token.key,
-        })
+            'user': user_data
+        }, status=status.HTTP_200_OK)
 
 
 class AllUsersView(generics.ListAPIView):
@@ -196,26 +199,14 @@ class CreateMembershipView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         user = request.user
 
-        # Check if user is already a member
         if user.memberships.filter(active=True).exists():
             return Response({"detail": "User is already a member."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create new membership (the price is handled by the model's default value)
+        # Create the membership
         membership = Membership.objects.create(user=user)
         membership.set_next_recurrence()
 
-        # Record the payment (assuming you get Stripe payment intent id and status from the frontend)
-        payment = Payment.objects.create(
-            user=user,
-            stripe_payment_intent_id="some_intent_id",  # Retrieve from request or Stripe
-            amount=membership.membership_price,
-            currency="usd",
-            status="completed",  # or "pending"
-            item="Membership Subscription"
-        )
-
-        # Add the payment to the membership's transaction history
-        membership.transaction_history.add(payment)
+        # Save the membership without handling payments for now
         membership.save()
 
         return Response({"detail": "Membership created successfully."}, status=status.HTTP_201_CREATED)

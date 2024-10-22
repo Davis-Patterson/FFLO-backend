@@ -98,7 +98,7 @@ class HoldBookView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsStaffPermission]
 
     def post(self, request, *args, **kwargs):
-        book_id = request.data.get('book_id')
+        book_id = kwargs.get('book_id')  # Get book ID from the URL
         if not book_id:
             return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -116,7 +116,7 @@ class HoldBookView(generics.GenericAPIView):
 
         BookHold.objects.create(
             book=book,
-            staff_member=request.user,
+            user=request.user,
             hold_date=timezone.now()
         )
 
@@ -130,7 +130,7 @@ class RentBookView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        book_id = request.data.get('book_id')
+        book_id = kwargs.get('book_id') 
         if not book_id:
             return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -173,7 +173,7 @@ class RemoveHoldView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsStaffPermission]
 
     def post(self, request, *args, **kwargs):
-        book_id = request.data.get('book_id')
+        book_id = kwargs.get('book_id')
         if not book_id:
             return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
 
