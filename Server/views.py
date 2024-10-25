@@ -265,7 +265,6 @@ class BookUpdateView(generics.UpdateAPIView):
         book = self.get_object()
         data = request.data
 
-        # Update title and author (ensure these are not empty)
         title = data.get('title')
         author = data.get('author')
 
@@ -280,11 +279,33 @@ class BookUpdateView(generics.UpdateAPIView):
         book.flair = data.get('flair', book.flair)
         book.inventory = data.get('inventory', book.inventory)
         book.available = data.get('available', book.available)
-
+        
         categories_data = data.get('categories', [])
-        if categories_data:
-            categories = Category.objects.filter(id__in=categories_data)
-            book.categories.set(categories)
+        if isinstance(categories_data, str):
+            categories_data = categories_data.split(',')
+
+        try:
+            category_ids = [int(category_id.strip()) for category_id in categories_data]
+        except ValueError:
+            return Response({"detail": "Invalid category ID format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if category_ids:
+            categories = Category.objects.filter(id__in=category_ids)
+            if categories.exists():
+                book.categories.add(*categories)
+
+        categories_to_remove = data.get('categories_to_remove', [])
+        if isinstance(categories_to_remove, str):
+            categories_to_remove = categories_to_remove.split(',')
+
+        try:
+            categories_to_remove = [int(category_id.strip()) for category_id in categories_to_remove]
+        except ValueError:
+            return Response({"detail": "Invalid category ID format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if categories_to_remove:
+            categories_to_remove_objects = Category.objects.filter(id__in=categories_to_remove)
+            book.categories.remove(*categories_to_remove_objects)
 
         book.save()
 
