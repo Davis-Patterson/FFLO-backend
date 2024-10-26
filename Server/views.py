@@ -28,10 +28,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
-
         categories = Category.objects.all()
         serializer = self.get_serializer(categories, many=True)
-
         return Response({
             'message': 'Category created successfully',
             'categories': serializer.data
@@ -39,10 +37,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
-
         categories = Category.objects.all()
         serializer = self.get_serializer(categories, many=True)
-
         return Response({
             'message': 'Category updated successfully',
             'categories': serializer.data

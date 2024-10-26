@@ -11,8 +11,10 @@ from django.utils import timezone
 from Common.utils import convert_to_webp, create_small_image
 
 class Category(models.Model):
-    name = models.CharField(max_length=255, unique=True)
-    description = models.TextField(max_length=255, blank=True, null=True)
+    name = models.CharField(max_length=15, unique=True)
+    description = models.CharField(max_length=50)
+    color = models.IntegerField()
+    icon = models.IntegerField()
 
     def __str__(self):
         return self.name

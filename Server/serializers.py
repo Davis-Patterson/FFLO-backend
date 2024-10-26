@@ -28,15 +28,29 @@ class CurrentRentalSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    books = serializers.StringRelatedField(many=True, read_only=True)
-    quantity = serializers.SerializerMethodField()
-
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'books', 'quantity']
+        fields = ['id', 'name', 'description', 'color', 'icon']
 
-    def get_quantity(self, obj):
-        return obj.books.count()
+    def validate_name(self, value):
+        if len(value) > 15:
+            raise serializers.ValidationError("Name must be 15 characters or fewer.")
+        return value
+
+    def validate_description(self, value):
+        if len(value) > 50:
+            raise serializers.ValidationError("Description must be 50 characters or fewer.")
+        return value
+
+    def validate_color(self, value):
+        if not isinstance(value, int):
+            raise serializers.ValidationError("Color must be an integer.")
+        return value
+
+    def validate_icon(self, value):
+        if not isinstance(value, int):
+            raise serializers.ValidationError("Icon must be an integer.")
+        return value
 
 
 class BookSerializer(serializers.ModelSerializer):
