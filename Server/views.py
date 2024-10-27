@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Category, Book, BookHold, BookRental, BookImage
@@ -27,6 +28,11 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return [IsStaffPermission()]
 
     def create(self, request, *args, **kwargs):
+        last_category = Category.objects.order_by('-sort_order').first()
+        next_sort_order = last_category.sort_order + 1 if last_category else 1
+
+        request.data['sort_order'] = next_sort_order
+
         response = super().create(request, *args, **kwargs)
         categories = Category.objects.all()
         serializer = self.get_serializer(categories, many=True)
@@ -37,12 +43,29 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
-        categories = Category.objects.all()
+        categories = Category.objects.all().order_by('sort_order')
         serializer = self.get_serializer(categories, many=True)
         return Response({
             'message': 'Category updated successfully',
             'categories': serializer.data
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsStaffPermission])
+    def reorder(self, request):
+        order_data = request.data.get('order', [])
+        
+        if not isinstance(order_data, list) or not all(isinstance(id, int) for id in order_data):
+            return Response({"error": "Invalid order data format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            for sort_order, category_id in enumerate(order_data, start=1):
+                category = Category.objects.get(id=category_id)
+                category.sort_order = sort_order
+                category.save()
+        except Category.DoesNotExist:
+            return Response({"error": "One or more category IDs are invalid."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Categories reordered successfully."}, status=status.HTTP_200_OK)
 
 
 class BookCategoryUpdateView(generics.UpdateAPIView):
@@ -54,7 +77,7 @@ class BookCategoryUpdateView(generics.UpdateAPIView):
         book = self.get_object()
         categories_data = request.data.get('categories', [])
         categories = Category.objects.filter(id__in=categories_data)
-        book.categories.set(categories)  # Update the book's categories
+        book.categories.set(categories)
         book.save()
         return Response({"detail": "Book categories updated successfully"})
 

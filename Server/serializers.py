@@ -30,7 +30,8 @@ class CurrentRentalSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'color', 'icon']
+        fields = ['id', 'name', 'description', 'color', 'icon', 'flair', 'sort_order']
+        read_only_fields = ['sort_order']
 
     def validate_name(self, value):
         if len(value) > 15:
@@ -40,6 +41,11 @@ class CategorySerializer(serializers.ModelSerializer):
     def validate_description(self, value):
         if len(value) > 50:
             raise serializers.ValidationError("Description must be 50 characters or fewer.")
+        return value
+
+    def validate_flair(self, value):
+        if len(value) > 10:
+            raise serializers.ValidationError("Flair must be 10 characters or fewer.")
         return value
 
     def validate_color(self, value):

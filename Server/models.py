@@ -15,6 +15,8 @@ class Category(models.Model):
     description = models.CharField(max_length=50)
     color = models.IntegerField()
     icon = models.IntegerField()
+    flair = models.CharField(max_length=10, blank=True, null=True)
+    sort_order = models.IntegerField()
 
     def __str__(self):
         return self.name
