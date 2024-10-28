@@ -44,7 +44,7 @@ class CategorySerializer(serializers.ModelSerializer):
         return value
 
     def validate_flair(self, value):
-        if len(value) > 10:
+        if value is not None and len(value) > 10:
             raise serializers.ValidationError("Flair must be 10 characters or fewer.")
         return value
 

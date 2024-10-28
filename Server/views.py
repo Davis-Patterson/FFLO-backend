@@ -31,17 +31,22 @@ class CategoryViewSet(viewsets.ModelViewSet):
         last_category = Category.objects.order_by('-sort_order').first()
         next_sort_order = last_category.sort_order + 1 if last_category else 1
 
-        request.data['sort_order'] = next_sort_order
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(sort_order=next_sort_order)  # Pass sort_order directly
 
-        response = super().create(request, *args, **kwargs)
-        categories = Category.objects.all()
-        serializer = self.get_serializer(categories, many=True)
+        categories = Category.objects.all().order_by('sort_order')
+        all_categories_serializer = self.get_serializer(categories, many=True)
+
         return Response({
             'message': 'Category created successfully',
-            'categories': serializer.data
+            'categories': all_categories_serializer.data
         }, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
+        if 'flair' in request.data and request.data['flair'] == '':
+            request.data['flair'] = None
+
         response = super().update(request, *args, **kwargs)
         categories = Category.objects.all().order_by('sort_order')
         serializer = self.get_serializer(categories, many=True)
