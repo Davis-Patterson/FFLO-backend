@@ -70,7 +70,12 @@ class CategoryViewSet(viewsets.ModelViewSet):
         except Category.DoesNotExist:
             return Response({"error": "One or more category IDs are invalid."}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"message": "Categories reordered successfully."}, status=status.HTTP_200_OK)
+        ordered_categories = Category.objects.all().order_by('sort_order')
+        serializer = self.get_serializer(ordered_categories, many=True)
+        return Response({
+            "message": "Categories reordered successfully.",
+            "categories": serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 class BookCategoryUpdateView(generics.UpdateAPIView):

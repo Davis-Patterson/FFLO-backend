@@ -27,11 +27,18 @@ class CurrentRentalSerializer(serializers.ModelSerializer):
         fields = ['user', 'rental_date', 'return_date']
 
 
+from rest_framework import serializers
+
 class CategorySerializer(serializers.ModelSerializer):
+    quantity = serializers.SerializerMethodField()
+
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'color', 'icon', 'flair', 'sort_order']
-        read_only_fields = ['sort_order']
+        fields = ['id', 'name', 'description', 'color', 'icon', 'flair', 'sort_order', 'quantity']
+        read_only_fields = ['sort_order', 'quantity']
+
+    def get_quantity(self, obj):
+        return obj.books.count()
 
     def validate_name(self, value):
         if len(value) > 15:
