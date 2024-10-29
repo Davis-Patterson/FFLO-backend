@@ -33,7 +33,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(sort_order=next_sort_order)  # Pass sort_order directly
+        serializer.save(sort_order=next_sort_order)
 
         categories = Category.objects.all().order_by('sort_order')
         all_categories_serializer = self.get_serializer(categories, many=True)
