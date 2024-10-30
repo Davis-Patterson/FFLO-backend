@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Book, BookImage, BookRental
+from .models import Bookmark, Category, Book, BookImage, BookRental
 from Accounts.models import CustomUser
 from Common.serializers import UserImageSerializer
 
@@ -27,7 +27,21 @@ class CurrentRentalSerializer(serializers.ModelSerializer):
         fields = ['user', 'rental_date', 'return_date']
 
 
-from rest_framework import serializers
+class BookmarkSerializer(serializers.ModelSerializer):
+    user_id = serializers.SerializerMethodField()
+    user_email = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Bookmark
+        fields = ['id', 'book', 'user_id', 'user_email', 'created_at']
+        read_only_fields = ['user_email', 'created_at']
+
+    def get_user_email(self, obj):
+        return obj.user.email
+
+    def get_user_id(self, obj):
+        return obj.user.id
+
 
 class CategorySerializer(serializers.ModelSerializer):
     quantity = serializers.SerializerMethodField()

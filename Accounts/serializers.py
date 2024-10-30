@@ -2,8 +2,8 @@ from .models import UserImage, CustomUser, Membership
 from rest_framework import serializers
 from Payments.serializers import PaymentSerializer
 from Common.serializers import UserImageSerializer
-from Server.serializers import BookImageSerializer
-from Server.models import BookRental, BookHold
+from Server.serializers import BookSerializer, BookImageSerializer
+from Server.models import Book, BookRental, BookHold
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.utils.crypto import get_random_string
@@ -83,10 +83,11 @@ class UserInfoSerializer(serializers.ModelSerializer):
     checked_out = serializers.SerializerMethodField()
     on_hold = serializers.SerializerMethodField()
     book_history = serializers.SerializerMethodField()
+    bookmarked_books = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'checked_out', 'on_hold', 'book_history']
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'checked_out', 'on_hold', 'book_history', 'bookmarked_books']
         read_only_fields = ['id', 'email', 'joined_date']
 
     def get_membership(self, obj):
@@ -115,19 +116,24 @@ class UserInfoSerializer(serializers.ModelSerializer):
         rental_history = obj.rented_books.all().order_by('-rental_date')
         return BookRentalWithBookSerializer(rental_history, many=True).data
 
+    def get_bookmarked_books(self, obj):
+        bookmarked_books = Book.objects.filter(bookmarks__user=obj)
+        return BookSerializer(bookmarked_books, many=True).data
+
 
 class UserDetailSerializer(serializers.ModelSerializer):
-    checked_out = serializers.SerializerMethodField()
+    image = UserImageSerializer(required=False)
     membership = serializers.SerializerMethodField()
+    checked_out = serializers.SerializerMethodField()
     membership_history = CurrentMembershipSerializer(many=True, read_only=True, source='memberships')
     transaction_history = PaymentSerializer(many=True, read_only=True, source='payments')
     book_history = serializers.SerializerMethodField()
     on_hold = serializers.SerializerMethodField()
-    image = UserImageSerializer(required=False)
+    bookmarked_books = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'on_hold', 'book_history']
+        fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'image', 'is_staff', 'joined_date', 'membership', 'membership_history', 'transaction_history', 'checked_out', 'on_hold', 'book_history', 'bookmarked_books']
         read_only_fields = ['id', 'email', 'joined_date']
 
     def get_membership(self, obj):
@@ -151,6 +157,10 @@ class UserDetailSerializer(serializers.ModelSerializer):
     def get_book_history(self, obj):
         rental_history = obj.rented_books.all().order_by('-rental_date')
         return BookRentalWithBookSerializer(rental_history, many=True).data
+
+    def get_bookmarked_books(self, obj):
+        bookmarked_books = Book.objects.filter(bookmarks__user=obj)
+        return BookSerializer(bookmarked_books, many=True).data
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):

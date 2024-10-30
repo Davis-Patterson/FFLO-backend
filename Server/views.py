@@ -2,17 +2,71 @@ from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Category, Book, BookHold, BookRental, BookImage
+from .models import Bookmark, Category, Book, BookHold, BookRental, BookImage
 from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
-from .serializers import CategorySerializer, BookSerializer, BookDetailSerializer
+from .serializers import BookmarkSerializer, CategorySerializer, BookSerializer, BookDetailSerializer
 
 class IsStaffPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_staff
+
+
+from rest_framework import viewsets, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from .models import Bookmark, Book
+from .serializers import BookmarkSerializer
+
+class BookmarkViewSet(viewsets.ModelViewSet):
+    serializer_class = BookmarkSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Bookmark.objects.filter(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        book_id = request.data.get('book_id')
+
+        if not book_id:
+            return Response({"error": "Book ID is required to bookmark a book."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({"error": "Book not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if Bookmark.objects.filter(user=request.user, book=book).exists():
+            return Response({"error": "Book is already bookmarked."}, status=status.HTTP_400_BAD_REQUEST)
+
+        Bookmark.objects.create(user=request.user, book=book)
+
+        bookmarks = self.get_queryset()
+        serializer = self.get_serializer(bookmarks, many=True)
+        return Response({
+            "detail": "Book bookmarked successfully.",
+            "bookmarks": serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['delete'])
+    def remove(self, request, pk=None):
+        try:
+            bookmark = Bookmark.objects.get(id=pk, user=request.user)
+        except Bookmark.DoesNotExist:
+            return Response({"error": "Bookmark not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        bookmark.delete()
+
+        bookmarks = self.get_queryset()
+        serializer = self.get_serializer(bookmarks, many=True)
+        return Response({
+            "detail": "Bookmark removed successfully.",
+            "bookmarks": serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 class CategoryViewSet(viewsets.ModelViewSet):

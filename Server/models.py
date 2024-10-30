@@ -40,6 +40,20 @@ class Book(models.Model):
         return bool(self.on_hold_by)
 
 
+class Bookmark(models.Model):
+    book = models.ForeignKey(Book, related_name="bookmarks", on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, related_name="bookmarks", on_delete=models.CASCADE, limit_choices_to={'is_staff': False})
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('book', 'user')
+        verbose_name = 'Bookmark'
+        verbose_name_plural = 'Bookmarks'
+
+    def __str__(self):
+        return f"{self.user.username} bookmarked {self.book.title}"
+
+
 class BookImage(models.Model):
     book = models.ForeignKey(Book, related_name="images", on_delete=models.CASCADE)
     image_url = models.URLField(blank=True, null=True)
