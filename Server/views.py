@@ -14,20 +14,15 @@ class IsStaffPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_staff
 
-
-from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from .models import Bookmark, Book
-from .serializers import BookmarkSerializer
-
 class BookmarkViewSet(viewsets.ModelViewSet):
-    serializer_class = BookmarkSerializer
+    serializer_class = BookSerializer  # Using BookSerializer to get full book details
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Bookmark.objects.filter(user=self.request.user)
+        # Get the list of book IDs that are bookmarked by the user
+        bookmarked_book_ids = Bookmark.objects.filter(user=self.request.user).values_list('book', flat=True)
+        # Return Book objects that match these IDs
+        return Book.objects.filter(id__in=bookmarked_book_ids)
 
     def create(self, request, *args, **kwargs):
         book_id = request.data.get('book_id')
@@ -45,24 +40,32 @@ class BookmarkViewSet(viewsets.ModelViewSet):
 
         Bookmark.objects.create(user=request.user, book=book)
 
+        # Serialize all bookmarked books
         bookmarks = self.get_queryset()
-        serializer = self.get_serializer(bookmarks, many=True)
+        serializer = BookSerializer(bookmarks, many=True)
         return Response({
             "detail": "Book bookmarked successfully.",
             "bookmarks": serializer.data
         }, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['delete'])
-    def remove(self, request, pk=None):
+    @action(detail=False, methods=['delete'], url_path='remove/(?P<book_id>[^/.]+)')
+    def remove(self, request, book_id=None):
+        if not book_id:
+            return Response({"error": "Book ID is required to remove a bookmark."}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
-            bookmark = Bookmark.objects.get(id=pk, user=request.user)
+            book = Book.objects.get(id=book_id)
+            bookmark = Bookmark.objects.get(user=request.user, book=book)
+        except Book.DoesNotExist:
+            return Response({"error": "Book not found."}, status=status.HTTP_404_NOT_FOUND)
         except Bookmark.DoesNotExist:
-            return Response({"error": "Bookmark not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Bookmark not found for this book."}, status=status.HTTP_404_NOT_FOUND)
 
         bookmark.delete()
 
+        # Serialize all remaining bookmarked books
         bookmarks = self.get_queryset()
-        serializer = self.get_serializer(bookmarks, many=True)
+        serializer = BookSerializer(bookmarks, many=True)
         return Response({
             "detail": "Bookmark removed successfully.",
             "bookmarks": serializer.data

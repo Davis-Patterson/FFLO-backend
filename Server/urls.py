@@ -21,4 +21,5 @@ urlpatterns = [
     path('books/<int:id>/update/', BookUpdateView.as_view(), name='update-book'),
     path('books/<int:id>/archive/', ToggleArchiveView.as_view(), name='toggle-archive'),
     path('books/archived/', ArchivedBookListView.as_view(), name='archived-books'),
+    path('bookmarks/remove/<int:book_id>/', BookmarkViewSet.as_view({'delete': 'remove'}), name='bookmark-remove'),
 ]

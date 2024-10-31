@@ -41,14 +41,6 @@ class UserRegistrationView(generics.CreateAPIView):
     def perform_create(self, serializer):
         user = serializer.save()
 
-        # stripe_customer = stripe.Customer.create(
-        #     email=user.email,
-        #     name=f"{user.first_name} {user.last_name}"
-        # )
-
-        # user.stripe_customer_id = stripe_customer['id']
-        # user.save()
-
 
 class CreateStaffUserView(generics.CreateAPIView):
     queryset = User.objects.all()
