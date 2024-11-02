@@ -166,26 +166,38 @@ class UserDetailSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     image = UserImageSerializer(required=False)
     image_file = serializers.ImageField(write_only=True, required=False)
+    remove_image = serializers.BooleanField(write_only=True, required=False)
 
     class Meta:
         model = CustomUser
-        fields = ['first_name', 'last_name', 'phone', 'image', 'image_file']
+        fields = ['first_name', 'last_name', 'phone', 'image', 'image_file', 'remove_image']
         extra_kwargs = {
-            'first_name': {'required': False},
-            'last_name': {'required': False},
-            'phone': {'required': False},
+            'first_name': {'required': True},
+            'last_name': {'required': False, 'allow_blank': True},
+            'phone': {'required': False, 'allow_blank': True}, 
         }
 
+    def validate_first_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("First name cannot be empty.")
+        return value
+
     def update(self, instance, validated_data):
+        remove_image = validated_data.pop('remove_image', False)
         image_file = validated_data.pop('image_file', None)
 
+        if remove_image and hasattr(instance, 'image'):
+            instance.image.delete()
+            instance.image = None
+
+        # Update fields with validated_data
         instance.first_name = validated_data.get('first_name', instance.first_name)
-        instance.last_name = validated_data.get('last_name', instance.last_name)
-        instance.phone = validated_data.get('phone', instance.phone)
+        instance.last_name = validated_data.get('last_name', '')
+        instance.phone = validated_data.get('phone', '')
         instance.save()
 
         if image_file:
-            if hasattr(instance, 'image'):
+            if hasattr(instance, 'image') and instance.image:
                 user_image = instance.image
             else:
                 user_image = UserImage(user=instance)
