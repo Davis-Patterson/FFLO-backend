@@ -21,10 +21,39 @@ class UserRentalSerializer(serializers.ModelSerializer):
 
 class CurrentRentalSerializer(serializers.ModelSerializer):
     user = UserRentalSerializer(read_only=True)
+    active = serializers.SerializerMethodField()
 
     class Meta:
         model = BookRental
-        fields = ['user', 'rental_date', 'return_date']
+        fields = ['user', 'rental_date', 'return_date', 'active', 'reserved']
+
+    def get_active(self, obj):
+        return obj.active
+
+
+class RentalHistorySerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    active = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookRental
+        fields = ['rental_date', 'return_date', 'active', 'user', 'reserved']
+
+    def get_user(self, obj):
+        user_image = None
+        if hasattr(obj.user, 'image') and obj.user.image:
+            user_image = UserImageSerializer(obj.user.image).data
+
+        return {
+            "email": obj.user.email,
+            "first_name": obj.user.first_name,
+            "last_name": obj.user.last_name if obj.user.last_name else "",
+            "phone": obj.user.phone if obj.user.phone else None,
+            "image": user_image
+        }
+
+    def get_active(self, obj):
+        return obj.active
 
 
 class BookmarkSerializer(serializers.ModelSerializer):
@@ -92,7 +121,7 @@ class BookSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Book
-        fields = ['id', 'title', 'author', 'description', 'images', 'inventory', 'available', 'created_date', 'flair', 'categories', 'archived', 'on_hold']
+        fields = ['id', 'title', 'author', 'description', 'language', 'images', 'inventory', 'available', 'created_date', 'flair', 'categories', 'archived', 'on_hold']
 
     def get_on_hold(self, obj):
         return obj.holds.filter(hold_date__isnull=False).exists()
@@ -111,31 +140,6 @@ class BookSerializer(serializers.ModelSerializer):
         return book
 
 
-class RentalHistorySerializer(serializers.ModelSerializer):
-    user = serializers.SerializerMethodField()
-    is_active = serializers.SerializerMethodField()
-
-    class Meta:
-        model = BookRental
-        fields = ['rental_date', 'return_date', 'is_active', 'user']
-
-    def get_user(self, obj):
-        user_image = None
-        if hasattr(obj.user, 'image') and obj.user.image:
-            user_image = UserImageSerializer(obj.user.image).data
-        
-        return {
-            "email": obj.user.email,
-            "first_name": obj.user.first_name,
-            "last_name": obj.user.last_name if obj.user.last_name else "",
-            "phone": obj.user.phone if obj.user.phone else None,
-            "image": user_image
-        }
-
-    def get_is_active(self, obj):
-        return obj.return_date is None
-
-
 class BookDetailSerializer(serializers.ModelSerializer):
     id = serializers.ReadOnlyField()
     images = BookImageSerializer(many=True, required=False)
@@ -149,7 +153,7 @@ class BookDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Book
-        fields = ['id', 'title', 'author', 'description', 'images', 'inventory', 'available', 'created_date', 'flair', 'archived', 'categories', 'current_status', 'rental_history']
+        fields = ['id', 'title', 'author', 'description', 'language', 'images', 'inventory', 'available', 'created_date', 'flair', 'archived', 'categories', 'current_status', 'rental_history']
 
     def get_current_status(self, obj):
         rentals = obj.rentals.filter(return_date__isnull=True)

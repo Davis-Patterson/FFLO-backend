@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import BookmarkViewSet, CategoryViewSet, BookListView, BookInfoView, BookDetailView, HoldBookView, RentBookView, RemoveHoldView, ReturnBookView, BookCreateView, DeleteBookView, BookCategoryUpdateView, BookUpdateView, ToggleArchiveView, ArchivedBookListView
+from .views import BookmarkViewSet, CategoryViewSet, BookListView, BookInfoView, BookDetailView, HoldBookView, BookReservationView, BookRentalActivateView, RemoveHoldView, ReturnBookView, BookCreateView, DeleteBookView, BookCategoryUpdateView, BookUpdateView, ToggleArchiveView, ArchivedBookListView
 
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
@@ -12,7 +12,8 @@ urlpatterns = [
     path('books/<int:id>/', BookInfoView.as_view(), name='book-detail'),
     path('books/<int:id>/full/', BookDetailView.as_view(), name='book-detail'),
     path('books/<int:book_id>/hold/', HoldBookView.as_view(), name='hold-book'),
-    path('books/<int:book_id>/rent/', RentBookView.as_view(), name='rent-book'),
+    path('books/<int:book_id>/reserve/', BookReservationView.as_view(), name='book-reservation'),
+    path('rentals/<int:rental_id>/activate/', BookRentalActivateView.as_view(), name='book-activate'),
     path('books/<int:book_id>/remove-hold/', RemoveHoldView.as_view(), name='remove-hold'),
     path('books/<int:book_id>/return/', ReturnBookView.as_view(), name='return-book'),
     path('books/create/', BookCreateView.as_view(), name='create-book'),

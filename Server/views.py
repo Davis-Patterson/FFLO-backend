@@ -212,7 +212,7 @@ class HoldBookView(generics.GenericAPIView):
         return Response({"detail": f"Book '{book.title}' has been placed on hold by {request.user.email}."}, status=status.HTTP_200_OK)
 
 
-class RentBookView(generics.GenericAPIView):
+class BookReservationView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
@@ -243,7 +243,8 @@ class RentBookView(generics.GenericAPIView):
             book=book,
             user=request.user,
             rental_date=timezone.now(),
-            due_date=timezone.now() + timezone.timedelta(days=7)
+            due_date=timezone.now() + timezone.timedelta(days=7),
+            reserved=True
         )
 
         book.available -= 1
@@ -253,6 +254,22 @@ class RentBookView(generics.GenericAPIView):
         active_membership.save()
 
         return Response({"detail": f"Book '{book.title}' rented successfully."}, status=status.HTTP_200_OK)
+
+
+class BookRentalActivateView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+    def post(self, request, *args, **kwargs):
+        rental_id = kwargs.get('rental_id')
+        try:
+            rental = BookRental.objects.get(id=rental_id, reserved=True)
+        except BookRental.DoesNotExist:
+            return Response({"error": "Reservation not found or already activated."}, status=status.HTTP_404_NOT_FOUND)
+
+        rental.reserved = False
+        rental.save()
+
+        return Response({"detail": f"Book '{rental.book.title}' rental activated successfully."}, status=status.HTTP_200_OK)
 
 
 class RemoveHoldView(generics.GenericAPIView):
@@ -365,6 +382,7 @@ class BookUpdateView(generics.UpdateAPIView):
         book.flair = data.get('flair', book.flair)
         book.inventory = data.get('inventory', book.inventory)
         book.available = data.get('available', book.available)
+        book.language = data.get('language', book.language)
         
         categories_data = data.get('categories', [])
         if isinstance(categories_data, str):
@@ -410,7 +428,6 @@ class BookUpdateView(generics.UpdateAPIView):
         except ValueError:
             return Response({"detail": "Invalid image ID format."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Delete the images
         for image_id in images_to_remove:
             try:
                 image = BookImage.objects.get(id=image_id, book=book)

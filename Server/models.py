@@ -32,6 +32,7 @@ class Book(models.Model):
     flair = models.CharField(max_length=10, blank=True, null=True)
     archived = models.BooleanField(default=False)
     categories = models.ManyToManyField(Category, related_name='books', blank=True)
+    language = models.CharField(max_length=20, default="French")
 
     def __str__(self):
         return self.title
@@ -122,10 +123,11 @@ class BookRental(models.Model):
     rental_date = models.DateTimeField(default=timezone.now)
     due_date = models.DateTimeField(blank=True, null=True)
     return_date = models.DateTimeField(blank=True, null=True)
+    reserved = models.BooleanField(default=True)
 
     @property
-    def is_active(self):
-        return self.return_date is None
+    def active(self):
+        return not self.reserved and self.return_date is None
 
     def save(self, *args, **kwargs):
         if not self.due_date:
