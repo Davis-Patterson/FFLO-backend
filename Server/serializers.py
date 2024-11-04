@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from .models import Bookmark, Category, Book, BookImage, BookRental
+from .models import Bookmark, Category, Book, BookRating, BookImage, BookRental
 from Accounts.models import CustomUser
 from Common.serializers import UserImageSerializer
+from django.db.models import Avg
+
 
 class BookImageSerializer(serializers.ModelSerializer):
     image_file = serializers.ImageField(write_only=True, required=False)
@@ -109,6 +111,18 @@ class CategorySerializer(serializers.ModelSerializer):
         return value
 
 
+class BookRatingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookRating
+        fields = ['id', 'book', 'user', 'rating']
+        read_only_fields = ['user', 'book']
+
+    def validate_rating(self, value):
+        if not isinstance(value, int) or not 1 <= value <= 5:
+            raise serializers.ValidationError("Rating must be an integer between 1 and 5.")
+        return value
+
+
 class BookSerializer(serializers.ModelSerializer):
     id = serializers.ReadOnlyField()
     images = BookImageSerializer(many=True, required=False)
@@ -118,13 +132,19 @@ class BookSerializer(serializers.ModelSerializer):
     categories = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), many=True)
     archived = serializers.BooleanField(default=False)
     on_hold = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+    ratings = BookRatingSerializer(many=True, read_only=True)
 
     class Meta:
         model = Book
-        fields = ['id', 'title', 'author', 'description', 'language', 'images', 'inventory', 'available', 'created_date', 'flair', 'categories', 'archived', 'on_hold']
+        fields = ['id', 'title', 'author', 'description', 'language', 'images', 'inventory', 'available', 'created_date', 'flair', 'categories', 'archived', 'on_hold', 'rating', 'ratings']
 
     def get_on_hold(self, obj):
         return obj.holds.filter(hold_date__isnull=False).exists()
+
+    def get_rating(self, obj):
+        average = obj.ratings.aggregate(average=Avg('rating'))['average']
+        return average if average is not None else None
 
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
@@ -150,10 +170,16 @@ class BookDetailSerializer(serializers.ModelSerializer):
     archived = serializers.BooleanField(default=False)
     current_status = serializers.SerializerMethodField()
     rental_history = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+    ratings = BookRatingSerializer(many=True, read_only=True, source='ratings')
 
     class Meta:
         model = Book
-        fields = ['id', 'title', 'author', 'description', 'language', 'images', 'inventory', 'available', 'created_date', 'flair', 'archived', 'categories', 'current_status', 'rental_history']
+        fields = ['id', 'title', 'author', 'description', 'language', 'images', 'inventory', 'available', 'created_date', 'flair', 'archived', 'categories', 'current_status', 'rental_history', 'rating', 'ratings']
+
+    def get_rating(self, obj):
+        average = obj.ratings.aggregate(average=Avg('rating'))['average']
+        return average if average is not None else None
 
     def get_current_status(self, obj):
         rentals = obj.rentals.filter(return_date__isnull=True)
@@ -162,14 +188,17 @@ class BookDetailSerializer(serializers.ModelSerializer):
         status_list = []
 
         for rental in rentals:
+            image = UserImageSerializer(rental.user.image).data if rental.user.image else None
             status_list.append({
                 "status": "rented",
                 "rental_date": rental.rental_date,
                 "due_date": rental.due_date,
                 "rented_by": {
-                    "email": rental.user.email,
                     "first_name": rental.user.first_name,
-                    "last_name": rental.user.last_name
+                    "last_name": rental.user.last_name,
+                    "email": rental.user.email,
+                    "phone": rental.user.phone,
+                    "image": image
                 }
             })
 
@@ -180,9 +209,9 @@ class BookDetailSerializer(serializers.ModelSerializer):
                 "status": "on_hold",
                 "hold_date": hold.hold_date,
                 "held_by": {
-                    "email": hold.user.email,
                     "first_name": hold.user.first_name,
                     "last_name": hold.user.last_name,
+                    "email": hold.user.email,
                     "image": held_by_image
                 }
             })

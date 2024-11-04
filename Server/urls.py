@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import BookmarkViewSet, CategoryViewSet, BookListView, BookInfoView, BookDetailView, HoldBookView, BookReservationView, BookRentalActivateView, RemoveHoldView, ReturnBookView, BookCreateView, DeleteBookView, BookCategoryUpdateView, BookUpdateView, ToggleArchiveView, ArchivedBookListView
+from .views import BookmarkViewSet, BookRatingViewSet, CategoryViewSet, BookListView, BookInfoView, BookDetailView, HoldBookView, BookReservationView, BookRentalActivateView, RemoveHoldView, ReturnBookView, BookCreateView, DeleteBookView, BookCategoryUpdateView, BookUpdateView, ToggleArchiveView, ArchivedBookListView
 
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
@@ -22,5 +22,6 @@ urlpatterns = [
     path('books/<int:id>/update/', BookUpdateView.as_view(), name='update-book'),
     path('books/<int:id>/archive/', ToggleArchiveView.as_view(), name='toggle-archive'),
     path('books/archived/', ArchivedBookListView.as_view(), name='archived-books'),
+    path('books/<int:book_id>/ratings/', BookRatingViewSet.as_view({'post': 'create'}), name='book-rating'),
     path('bookmarks/remove/<int:book_id>/', BookmarkViewSet.as_view({'delete': 'remove'}), name='bookmark-remove'),
 ]

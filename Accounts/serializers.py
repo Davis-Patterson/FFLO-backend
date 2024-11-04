@@ -73,7 +73,9 @@ class BookRentalWithBookSerializer(serializers.ModelSerializer):
             "id": obj.book.id,
             "title": obj.book.title,
             "author": obj.book.author,
-            "image": BookImageSerializer(obj.book.images.all(), many=True).data
+            "image": BookImageSerializer(obj.book.images.all(), many=True).data,
+            "language": obj.book.language,
+            "rating": obj.book.rating
         }
 
 

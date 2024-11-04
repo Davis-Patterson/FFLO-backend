@@ -3,12 +3,15 @@ import uuid
 import re
 from django.db import models
 from django.conf import settings
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 from django.core.files.storage import default_storage
 from storages.backends.s3boto3 import S3Boto3Storage
 from Accounts.models import CustomUser
 from Payments.models import Payment
 from django.utils import timezone
 from Common.utils import convert_to_webp, create_small_image
+from django.db.models import Avg
 
 class Category(models.Model):
     name = models.CharField(max_length=15, unique=True)
@@ -26,19 +29,47 @@ class Book(models.Model):
     title = models.CharField(max_length=255, unique=True)
     author = models.CharField(max_length=255)
     description = models.CharField(max_length=1200, blank=True, null=True)
+    language = models.CharField(max_length=20, default="French")
+    rating = models.FloatField(null=True, blank=True)
     inventory = models.PositiveIntegerField(default=1)
     available = models.PositiveIntegerField(default=1)
     created_date = models.DateTimeField(auto_now_add=True)
     flair = models.CharField(max_length=10, blank=True, null=True)
     archived = models.BooleanField(default=False)
     categories = models.ManyToManyField(Category, related_name='books', blank=True)
-    language = models.CharField(max_length=20, default="French")
 
     def __str__(self):
         return self.title
 
     def is_on_hold(self):
         return bool(self.on_hold_by)
+
+    def get_rating(self):
+        average = self.ratings.aggregate(average=Avg('rating'))['average']
+        return average
+
+    def update_available(self):
+        reserved_count = BookRental.objects.filter(book=self, reserved=True).count()
+        active_count = BookRental.objects.filter(book=self, is_active=True).count()
+        hold_count = BookHold.objects.filter(book=self).count()
+
+        self.available = max(self.inventory - (reserved_count + active_count + hold_count), 0)
+
+    def save(self, *args, **kwargs):
+        self.update_available()
+        super(Book, self).save(*args, **kwargs)
+
+
+class BookRating(models.Model):
+    book = models.ForeignKey(Book, related_name="ratings", on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="book_ratings", on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(choices=[(i, i) for i in range(1, 6)], blank=True, null=True)
+
+    class Meta:
+        unique_together = ('book', 'user')
+    
+    def __str__(self):
+        return f"Rating of {self.rating} for {self.book.title} by {self.user.username}"
 
 
 class Bookmark(models.Model):
@@ -124,10 +155,7 @@ class BookRental(models.Model):
     due_date = models.DateTimeField(blank=True, null=True)
     return_date = models.DateTimeField(blank=True, null=True)
     reserved = models.BooleanField(default=True)
-
-    @property
-    def active(self):
-        return not self.reserved and self.return_date is None
+    is_active = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if not self.due_date:

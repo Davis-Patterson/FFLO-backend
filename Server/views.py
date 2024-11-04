@@ -2,26 +2,24 @@ from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Bookmark, Category, Book, BookHold, BookRental, BookImage
+from rest_framework.viewsets import ModelViewSet
+from .models import Bookmark, Category, Book, BookRating, BookHold, BookRental, BookImage
 from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
-from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
-from .serializers import BookmarkSerializer, CategorySerializer, BookSerializer, BookDetailSerializer
+from .serializers import CategorySerializer, BookSerializer, BookRatingSerializer, BookDetailSerializer
 
 class IsStaffPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_staff
 
 class BookmarkViewSet(viewsets.ModelViewSet):
-    serializer_class = BookSerializer  # Using BookSerializer to get full book details
+    serializer_class = BookSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Get the list of book IDs that are bookmarked by the user
         bookmarked_book_ids = Bookmark.objects.filter(user=self.request.user).values_list('book', flat=True)
-        # Return Book objects that match these IDs
         return Book.objects.filter(id__in=bookmarked_book_ids)
 
     def create(self, request, *args, **kwargs):
@@ -40,7 +38,6 @@ class BookmarkViewSet(viewsets.ModelViewSet):
 
         Bookmark.objects.create(user=request.user, book=book)
 
-        # Serialize all bookmarked books
         bookmarks = self.get_queryset()
         serializer = BookSerializer(bookmarks, many=True)
         return Response({
@@ -63,13 +60,38 @@ class BookmarkViewSet(viewsets.ModelViewSet):
 
         bookmark.delete()
 
-        # Serialize all remaining bookmarked books
         bookmarks = self.get_queryset()
         serializer = BookSerializer(bookmarks, many=True)
         return Response({
             "detail": "Bookmark removed successfully.",
             "bookmarks": serializer.data
         }, status=status.HTTP_200_OK)
+
+
+class BookRatingViewSet(ModelViewSet):
+    serializer_class = BookRatingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        book_id = self.kwargs.get('book_id')
+        if book_id:
+            return BookRating.objects.filter(book_id=book_id)
+        return BookRating.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        book_id = kwargs.get('book_id')
+        if not book_id:
+            return Response({"detail": "Book ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        existing_rating = BookRating.objects.filter(book_id=book_id, user=request.user).first()
+        if existing_rating:
+            existing_rating.delete()
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user, book_id=book_id)
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -184,7 +206,7 @@ class HoldBookView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsStaffPermission]
 
     def post(self, request, *args, **kwargs):
-        book_id = kwargs.get('book_id')  # Get book ID from the URL
+        book_id = kwargs.get('book_id')
         if not book_id:
             return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -247,7 +269,6 @@ class BookReservationView(generics.GenericAPIView):
             reserved=True
         )
 
-        book.available -= 1
         book.save()
 
         active_membership.monthly_books += 1
@@ -267,6 +288,7 @@ class BookRentalActivateView(generics.GenericAPIView):
             return Response({"error": "Reservation not found or already activated."}, status=status.HTTP_404_NOT_FOUND)
 
         rental.reserved = False
+        rental.is_active = True
         rental.save()
 
         return Response({"detail": f"Book '{rental.book.title}' rental activated successfully."}, status=status.HTTP_200_OK)
@@ -292,7 +314,6 @@ class RemoveHoldView(generics.GenericAPIView):
 
         hold.delete()
 
-        book.available += 1
         book.save()
 
         return Response({"detail": f"Hold on book '{book.title}' removed successfully."}, status=status.HTTP_200_OK)
@@ -319,10 +340,10 @@ class ReturnBookView(generics.GenericAPIView):
             return Response({"detail": "No active rental found for this book with the provided email"}, status=status.HTTP_400_BAD_REQUEST)
 
         rental.return_date = timezone.now()
+        rental.is_active = False
         rental.save()
 
         book = rental.book
-        book.available += 1
         book.save()
 
         return Response({"detail": f"Book '{book.title}' returned successfully."}, status=status.HTTP_200_OK)
@@ -381,8 +402,16 @@ class BookUpdateView(generics.UpdateAPIView):
         book.description = data.get('description', book.description)
         book.flair = data.get('flair', book.flair)
         book.inventory = data.get('inventory', book.inventory)
-        book.available = data.get('available', book.available)
         book.language = data.get('language', book.language)
+
+        new_inventory = data.get('inventory', book.inventory)
+        try:
+            new_inventory = int(new_inventory)
+        except (ValueError, TypeError):
+            return Response({"detail": "Inventory must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_inventory != book.inventory:
+            book.inventory = new_inventory
         
         categories_data = data.get('categories', [])
         if isinstance(categories_data, str):
@@ -453,7 +482,6 @@ class ToggleArchiveView(APIView):
         except Book.DoesNotExist:
             raise NotFound("Book not found")
 
-        # Toggle the archived status
         book.archived = not book.archived
         book.save()
 
