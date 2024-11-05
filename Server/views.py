@@ -293,6 +293,42 @@ class BookReservationView(generics.GenericAPIView):
         return Response({"detail": f"Book '{book.title}' rented successfully."}, status=status.HTTP_200_OK)
 
 
+class CancelReservationView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, book_id):
+        user = request.user
+
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({"error": "Book not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            book_rental = BookRental.objects.get(
+                book=book,
+                user=user,
+                reserved=True,
+                is_active=False
+            )
+        except BookRental.DoesNotExist:
+            return Response({"error": "No matching reservation found for this book."}, status=status.HTTP_404_NOT_FOUND)
+
+        book_rental.delete()
+
+        active_membership = user.memberships.filter(active=True).first()
+        if not active_membership:
+            return Response({"error": "User does not have an active membership."}, status=status.HTTP_403_FORBIDDEN)
+
+        active_membership.monthly_books += 1
+        active_membership.save()
+
+        return Response({
+            "detail": f"Reservation for '{book.title}' has been canceled successfully.",
+            "monthly_books": active_membership.monthly_books
+        }, status=status.HTTP_200_OK)
+
+
 class BookRentalActivateView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsStaffPermission]
 
