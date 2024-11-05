@@ -8,7 +8,7 @@ from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
 from django.utils import timezone
-from .serializers import CategorySerializer, BookSerializer, BookRatingSerializer, BookDetailSerializer
+from .serializers import CategorySerializer, BookSerializer, BookDetailSerializer, BookRatingSerializer
 
 class IsStaffPermission(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -83,6 +83,17 @@ class BookRatingViewSet(ModelViewSet):
         if not book_id:
             return Response({"detail": "Book ID is required."}, status=status.HTTP_400_BAD_REQUEST)
         
+        if request.data.get('rating') == 0:
+            existing_rating = BookRating.objects.filter(book_id=book_id, user=request.user).first()
+            if existing_rating:
+                existing_rating.delete()
+            book = Book.objects.get(id=book_id)
+            book_data = BookSerializer(book).data
+            return Response({
+                "detail": "Rating deleted successfully.",
+                "book": book_data
+            }, status=status.HTTP_200_OK)
+        
         existing_rating = BookRating.objects.filter(book_id=book_id, user=request.user).first()
         if existing_rating:
             existing_rating.delete()
@@ -91,7 +102,12 @@ class BookRatingViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user, book_id=book_id)
         
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        book = Book.objects.get(id=book_id)
+        book_data = BookSerializer(book).data
+        return Response({
+            "detail": "Rating added/updated successfully.",
+            "book": book_data
+        }, status=status.HTTP_201_CREATED)
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -188,18 +204,18 @@ class BookListView(generics.ListAPIView):
         return queryset
 
 
+class BookDetailView(generics.RetrieveAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookDetailSerializer
+    lookup_field = 'id'
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+
 class BookInfoView(generics.RetrieveAPIView):
     queryset = Book.objects.filter(archived=False)
     serializer_class = BookSerializer
     lookup_field = 'id'
     permission_classes = []
-
-
-class BookDetailView(generics.RetrieveAPIView):
-    queryset = Book.objects.filter(archived=False)
-    serializer_class = BookDetailSerializer
-    lookup_field = 'id'
-    permission_classes = [IsStaffPermission]
 
 
 class HoldBookView(generics.GenericAPIView):
@@ -281,11 +297,20 @@ class BookRentalActivateView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, IsStaffPermission]
 
     def post(self, request, *args, **kwargs):
-        rental_id = kwargs.get('rental_id')
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
-            rental = BookRental.objects.get(id=rental_id, reserved=True)
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            rental = BookRental.objects.get(user=user, reserved=True)
         except BookRental.DoesNotExist:
-            return Response({"error": "Reservation not found or already activated."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "No reserved rental found for this user or already activated."}, status=status.HTTP_404_NOT_FOUND)
 
         rental.reserved = False
         rental.is_active = True
@@ -340,6 +365,7 @@ class ReturnBookView(generics.GenericAPIView):
             return Response({"detail": "No active rental found for this book with the provided email"}, status=status.HTTP_400_BAD_REQUEST)
 
         rental.return_date = timezone.now()
+        rental.reserved = False
         rental.is_active = False
         rental.save()
 
@@ -498,3 +524,17 @@ class ArchivedBookListView(generics.ListAPIView):
 
     def get_queryset(self):
         return Book.objects.filter(archived=True)
+
+class ResetAllBooksView(APIView):
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+    def post(self, request, *args, **kwargs):
+        BookRental.objects.update(is_active=False, reserved=False)
+        
+        Book.objects.update(archived=False)
+        
+        for book in Book.objects.all():
+            book.update_available()
+            book.save()
+
+        return Response({"detail": "All books and rentals have been reset successfully."}, status=status.HTTP_200_OK)

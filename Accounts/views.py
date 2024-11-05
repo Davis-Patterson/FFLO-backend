@@ -194,11 +194,9 @@ class CreateMembershipView(generics.GenericAPIView):
         if user.memberships.filter(active=True).exists():
             return Response({"detail": "User is already a member."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create the membership
         membership = Membership.objects.create(user=user)
         membership.set_next_recurrence()
 
-        # Save the membership without handling payments for now
         membership.save()
 
         return Response({"detail": "Membership created successfully."}, status=status.HTTP_201_CREATED)

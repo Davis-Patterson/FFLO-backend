@@ -23,23 +23,21 @@ class UserRentalSerializer(serializers.ModelSerializer):
 
 class CurrentRentalSerializer(serializers.ModelSerializer):
     user = UserRentalSerializer(read_only=True)
-    active = serializers.SerializerMethodField()
 
     class Meta:
         model = BookRental
-        fields = ['user', 'rental_date', 'return_date', 'active', 'reserved']
+        fields = ['user', 'rental_date', 'return_date', 'is_active', 'reserved', 'late']
 
-    def get_active(self, obj):
-        return obj.active
+    def get_late(self, obj):
+        return obj.late
 
 
 class RentalHistorySerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
-    active = serializers.SerializerMethodField()
 
     class Meta:
         model = BookRental
-        fields = ['rental_date', 'return_date', 'active', 'user', 'reserved']
+        fields = ['rental_date', 'return_date', 'is_active', 'user', 'reserved']
 
     def get_user(self, obj):
         user_image = None
@@ -53,9 +51,6 @@ class RentalHistorySerializer(serializers.ModelSerializer):
             "phone": obj.user.phone if obj.user.phone else None,
             "image": user_image
         }
-
-    def get_active(self, obj):
-        return obj.active
 
 
 class BookmarkSerializer(serializers.ModelSerializer):
@@ -160,65 +155,18 @@ class BookSerializer(serializers.ModelSerializer):
         return book
 
 
-class BookDetailSerializer(serializers.ModelSerializer):
-    id = serializers.ReadOnlyField()
-    images = BookImageSerializer(many=True, required=False)
-    created_date = serializers.ReadOnlyField()
-    description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    flair = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    categories = serializers.StringRelatedField(many=True)
-    archived = serializers.BooleanField(default=False)
-    current_status = serializers.SerializerMethodField()
+class BookDetailSerializer(BookSerializer):
+    checked_out = serializers.SerializerMethodField()
     rental_history = serializers.SerializerMethodField()
-    rating = serializers.SerializerMethodField()
-    ratings = BookRatingSerializer(many=True, read_only=True, source='ratings')
 
     class Meta:
         model = Book
-        fields = ['id', 'title', 'author', 'description', 'language', 'images', 'inventory', 'available', 'created_date', 'flair', 'archived', 'categories', 'current_status', 'rental_history', 'rating', 'ratings']
+        fields = BookSerializer.Meta.fields + ['checked_out', 'rental_history']
 
-    def get_rating(self, obj):
-        average = obj.ratings.aggregate(average=Avg('rating'))['average']
-        return average if average is not None else None
-
-    def get_current_status(self, obj):
-        rentals = obj.rentals.filter(return_date__isnull=True)
-        holds = obj.holds.filter(hold_date__isnull=False)
-
-        status_list = []
-
-        for rental in rentals:
-            image = UserImageSerializer(rental.user.image).data if rental.user.image else None
-            status_list.append({
-                "status": "rented",
-                "rental_date": rental.rental_date,
-                "due_date": rental.due_date,
-                "rented_by": {
-                    "first_name": rental.user.first_name,
-                    "last_name": rental.user.last_name,
-                    "email": rental.user.email,
-                    "phone": rental.user.phone,
-                    "image": image
-                }
-            })
-
-        for hold in holds:
-            held_by_image = UserImageSerializer(hold.user.image).data if hold.user.image else None
-
-            status_list.append({
-                "status": "on_hold",
-                "hold_date": hold.hold_date,
-                "held_by": {
-                    "first_name": hold.user.first_name,
-                    "last_name": hold.user.last_name,
-                    "email": hold.user.email,
-                    "image": held_by_image
-                }
-            })
-
-        return status_list if status_list else None
+    def get_checked_out(self, obj):
+        active_rentals = obj.rentals.filter(return_date__isnull=True)
+        return CurrentRentalSerializer(active_rentals, many=True).data
 
     def get_rental_history(self, obj):
-        rentals = obj.rentals.all().order_by('-rental_date')
-        return RentalHistorySerializer(rentals, many=True).data
-
+        rental_history = obj.rentals.all().order_by('-rental_date')
+        return RentalHistorySerializer(rental_history, many=True).data

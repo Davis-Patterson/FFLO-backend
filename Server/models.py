@@ -162,6 +162,14 @@ class BookRental(models.Model):
             self.due_date = self.rental_date + timezone.timedelta(days=7)
         super(BookRental, self).save(*args, **kwargs)
 
+    @property
+    def late(self):
+        if self.return_date:
+            return False
+        if self.due_date and timezone.now().date() > self.due_date.date():
+            return True
+        return False
+
 
 class BookHold(models.Model):
     book = models.ForeignKey(Book, related_name="holds", on_delete=models.CASCADE)

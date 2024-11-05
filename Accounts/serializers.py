@@ -63,7 +63,7 @@ class BookRentalWithBookSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BookRental
-        fields = ['rental_date', 'return_date', 'is_active', 'book']
+        fields = ['rental_date', 'return_date', 'due_date', 'reserved', 'is_active', 'late', 'book']
 
     def get_is_active(self, obj):
         return obj.return_date is None
@@ -73,7 +73,7 @@ class BookRentalWithBookSerializer(serializers.ModelSerializer):
             "id": obj.book.id,
             "title": obj.book.title,
             "author": obj.book.author,
-            "image": BookImageSerializer(obj.book.images.all(), many=True).data,
+            "images": BookImageSerializer(obj.book.images.all(), many=True).data,
             "language": obj.book.language,
             "rating": obj.book.rating
         }

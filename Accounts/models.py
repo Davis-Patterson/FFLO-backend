@@ -52,7 +52,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
-
     def reset_free_books(self):
         self.free_books = 0
         self.save()
