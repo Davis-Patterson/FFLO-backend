@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
 from django.utils import timezone
 from .serializers import CategorySerializer, BookSerializer, BookDetailSerializer, BookRatingSerializer
+from Accounts.serializers import UserInfoSerializer
 
 class IsStaffPermission(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -277,7 +278,7 @@ class BookReservationView(generics.GenericAPIView):
         if active_rentals.exists():
             return Response({"error": "You already have an active rental"}, status=status.HTTP_403_FORBIDDEN)
 
-        BookRental.objects.create(
+        reservation = BookRental.objects.create(
             book=book,
             user=request.user,
             rental_date=timezone.now(),
@@ -286,11 +287,17 @@ class BookReservationView(generics.GenericAPIView):
         )
 
         book.save()
-
         active_membership.monthly_books += 1
         active_membership.save()
 
-        return Response({"detail": f"Book '{book.title}' rented successfully."}, status=status.HTTP_200_OK)
+        book_data = BookSerializer(book).data
+        user_data = UserInfoSerializer(request.user).data
+
+        return Response({
+            "detail": f"Book '{book.title}' rented successfully.",
+            "book": book_data,
+            "user": user_data
+        }, status=status.HTTP_200_OK)
 
 
 class CancelReservationView(APIView):
@@ -322,8 +329,13 @@ class CancelReservationView(APIView):
 
         book.save()
 
+        book_data = BookSerializer(book).data
+        user_data = UserInfoSerializer(request.user).data
+
         return Response({
             "detail": f"Reservation for '{book.title}' has been canceled successfully.",
+            "book": book_data,
+            "user": user_data,
             "monthly_books": active_membership.monthly_books
         }, status=status.HTTP_200_OK)
 
@@ -351,7 +363,14 @@ class BookRentalActivateView(generics.GenericAPIView):
         rental.is_active = True
         rental.save()
 
-        return Response({"detail": f"Book '{rental.book.title}' rental activated successfully."}, status=status.HTTP_200_OK)
+        book_data = BookSerializer(rental.book).data
+        user_data = UserInfoSerializer(user).data
+
+        return Response({
+            "detail": f"Book '{rental.book.title}' rental activated successfully.",
+            "book": book_data,
+            "user": user_data
+        }, status=status.HTTP_200_OK)
 
 
 class RemoveHoldView(generics.GenericAPIView):
@@ -383,21 +402,29 @@ class ReturnBookView(generics.GenericAPIView):
     permission_classes = []
 
     def post(self, request, *args, **kwargs):
-        book_id = kwargs.get('book_id')
         email = request.data.get('email')
 
         if not email:
-            return Response({"detail": "Email address is required to return a book"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Email address is required to return a book"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             user = CustomUser.objects.get(email=email)
         except CustomUser.DoesNotExist:
-            return Response({"detail": "No user found with this email address"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "No user found with this email address"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        rental = BookRental.objects.filter(book_id=book_id, user=user, return_date__isnull=True).first()
+        rental = BookRental.objects.filter(user=user, return_date__isnull=True).first()
 
         if not rental:
-            return Response({"detail": "No active rental found for this book with the provided email"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "No active rental found for this user"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         rental.return_date = timezone.now()
         rental.reserved = False
@@ -407,7 +434,10 @@ class ReturnBookView(generics.GenericAPIView):
         book = rental.book
         book.save()
 
-        return Response({"detail": f"Book '{book.title}' returned successfully."}, status=status.HTTP_200_OK)
+        return Response(
+            {"detail": f"Book '{book.title}' returned successfully."},
+            status=status.HTTP_200_OK
+        )
 
 
 class BookCreateView(generics.CreateAPIView):

@@ -49,6 +49,8 @@ class Book(models.Model):
         return average
 
     def update_available(self):
+        if not self.pk:
+          return
         reserved_count = BookRental.objects.filter(book=self, reserved=True).count()
         active_count = BookRental.objects.filter(book=self, is_active=True).count()
         hold_count = BookHold.objects.filter(book=self).count()
