@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.authentication import BasicAuthentication
+from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import Membership
 from Payments.models import Payment
@@ -213,3 +213,15 @@ class ResetMonthlyBooksView(APIView):
             membership.save()
 
         return Response({"detail": "Monthly books count has been reset for all active memberships."}, status=200)
+
+
+class VerifyStaffView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
+
+    def get(self, request):
+        user = request.user
+        if user.is_staff:
+            return Response({"detail": "User is a staff member."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"detail": "User is not a staff member."}, status=status.HTTP_403_FORBIDDEN)
