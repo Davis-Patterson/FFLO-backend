@@ -261,7 +261,46 @@ class HoldBookView(generics.GenericAPIView):
         book.available -= 1
         book.save()
 
-        return Response({"detail": f"Book '{book.title}' has been placed on hold by {request.user.email}."}, status=status.HTTP_200_OK)
+        book_data = BookSerializer(book).data
+        user_data = UserInfoSerializer(request.user).data
+
+        return Response({
+            "detail": f"Book '{book.title}' has been placed on hold by {request.user.email}.",
+            "book": book_data,
+            "user": user_data
+        }, status=status.HTTP_200_OK)
+
+
+class RemoveHoldView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+    def post(self, request, *args, **kwargs):
+        book_id = kwargs.get('book_id')
+        if not book_id:
+            return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        hold = book.holds.filter(hold_date__isnull=False).first()
+
+        if not hold:
+            return Response({"error": f"No active hold found for {book.title}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        hold.delete()
+
+        book.save()
+
+        book_data = BookSerializer(book).data
+        user_data = UserInfoSerializer(request.user).data
+
+        return Response({
+            "detail": f"Hold on book '{book.title}' removed successfully.",
+            "book": book_data,
+            "user": user_data
+        }, status=status.HTTP_200_OK)
 
 
 class BookReservationView(generics.GenericAPIView):
@@ -384,31 +423,6 @@ class BookRentalActivateView(generics.GenericAPIView):
             "book": book_data,
             "user": user_data
         }, status=status.HTTP_200_OK)
-
-
-class RemoveHoldView(generics.GenericAPIView):
-    permission_classes = [IsAuthenticated, IsStaffPermission]
-
-    def post(self, request, *args, **kwargs):
-        book_id = kwargs.get('book_id')
-        if not book_id:
-            return Response({"error": "No book ID provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            book = Book.objects.get(id=book_id)
-        except Book.DoesNotExist:
-            return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        hold = book.holds.filter(hold_date__isnull=False).first()
-
-        if not hold:
-            return Response({"error": f"No active hold found for {book.title}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        hold.delete()
-
-        book.save()
-
-        return Response({"detail": f"Hold on book '{book.title}' removed successfully."}, status=status.HTTP_200_OK)
 
 
 class ReturnBookView(generics.GenericAPIView):

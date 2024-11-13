@@ -79,6 +79,24 @@ class BookRentalWithBookSerializer(serializers.ModelSerializer):
         }
 
 
+class BookHoldWithBookSerializer(serializers.ModelSerializer):
+    book = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookHold
+        fields = ['hold_date', 'book']
+
+    def get_book(self, obj):
+        return {
+            "id": obj.book.id,
+            "title": obj.book.title,
+            "author": obj.book.author,
+            "images": BookImageSerializer(obj.book.images.all(), many=True).data,
+            "language": obj.book.language,
+            "rating": obj.book.rating,
+        }
+
+
 class UserInfoSerializer(serializers.ModelSerializer): 
     image = UserImageSerializer(required=False)
     membership = serializers.SerializerMethodField()
@@ -111,7 +129,7 @@ class UserInfoSerializer(serializers.ModelSerializer):
         if obj.is_staff:
             held_books = BookHold.objects.filter(user=obj)
             if held_books.exists():
-                return BookRentalWithBookSerializer(held_books, many=True).data
+                return BookHoldWithBookSerializer(held_books, many=True).data
         return None
 
     def get_book_history(self, obj):
@@ -153,7 +171,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     def get_on_hold(self, obj):
         held_books = BookHold.objects.filter(user=obj)
         if held_books.exists():
-            return BookRentalWithBookSerializer(held_books, many=True).data
+            return BookHoldWithBookSerializer(held_books, many=True).data
         return None
 
     def get_book_history(self, obj):
