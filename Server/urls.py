@@ -1,10 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import BookmarkViewSet, BookRatingViewSet, CategoryViewSet, BookListView, BookInfoView, BookDetailView, HoldBookView, BookReservationView, CancelReservationView, BookRentalActivateView, RemoveHoldView, ReturnBookView, BookCreateView, DeleteBookView, BookCategoryUpdateView, BookUpdateView, ToggleArchiveView, ArchivedBookListView, ResetAllBooksView
+from .views import BookmarkViewSet, BookRatingViewSet, CategoryViewSet, ReviewViewSet, BookListView, BookInfoView, BookDetailView, HoldBookView, BookReservationView, CancelReservationView, BookRentalActivateView, RemoveHoldView, ReturnBookView, BookCreateView, DeleteBookView, BookCategoryUpdateView, BookUpdateView, ToggleArchiveView, ArchivedBookListView, ResetAllBooksView
 
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'bookmarks', BookmarkViewSet, basename='bookmark')
+router.register(r'reviews', ReviewViewSet, basename='review')
 
 urlpatterns = [
     path('', include(router.urls)),

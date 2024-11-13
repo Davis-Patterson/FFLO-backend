@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Bookmark, Category, Book, BookRating, BookImage, BookRental
+from .models import Bookmark, Category, Book, BookRating, BookImage, BookRental, Review
 from Accounts.models import CustomUser
 from Common.serializers import UserImageSerializer
 from django.db.models import Avg
@@ -170,3 +170,10 @@ class BookDetailSerializer(BookSerializer):
     def get_rental_history(self, obj):
         rental_history = obj.rentals.all().order_by('-rental_date')
         return RentalHistorySerializer(rental_history, many=True).data
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = ['id', 'name', 'message', 'created_at']
+        read_only_fields = ['created_at']

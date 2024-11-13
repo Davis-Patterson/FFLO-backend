@@ -29,7 +29,7 @@ class Book(models.Model):
     title = models.CharField(max_length=255, unique=True)
     author = models.CharField(max_length=255)
     description = models.CharField(max_length=1200, blank=True, null=True)
-    language = models.CharField(max_length=20, default="French")
+    language = models.CharField(max_length=20, default="Français")
     rating = models.FloatField(null=True, blank=True)
     inventory = models.PositiveIntegerField(default=1)
     available = models.PositiveIntegerField(default=1)
@@ -180,3 +180,12 @@ class BookHold(models.Model):
 
     def __str__(self):
         return f"{self.book.title} held by {self.user.first_name} on {self.hold_date} (email: {self.user.email})"
+
+
+class Review(models.Model):
+    name = models.CharField(max_length=50)
+    message = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Review by {self.name}"

@@ -3,12 +3,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
-from .models import Bookmark, Category, Book, BookRating, BookHold, BookRental, BookImage
+from .models import Bookmark, Category, Book, BookRating, BookHold, BookRental, BookImage, Review
 from Accounts.models import CustomUser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
 from django.utils import timezone
-from .serializers import CategorySerializer, BookSerializer, BookDetailSerializer, BookRatingSerializer
+from .serializers import CategorySerializer, BookSerializer, BookDetailSerializer, BookRatingSerializer, ReviewSerializer
 from Accounts.serializers import UserInfoSerializer
 
 class IsStaffPermission(permissions.BasePermission):
@@ -172,6 +172,15 @@ class CategoryViewSet(viewsets.ModelViewSet):
             "message": "Categories reordered successfully.",
             "categories": serializer.data
         }, status=status.HTTP_200_OK)
+
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+    def perform_create(self, serializer):
+        serializer.save()
 
 
 class BookCategoryUpdateView(generics.UpdateAPIView):
@@ -589,6 +598,7 @@ class ArchivedBookListView(generics.ListAPIView):
 
     def get_queryset(self):
         return Book.objects.filter(archived=True)
+
 
 class ResetAllBooksView(APIView):
     permission_classes = [IsAuthenticated, IsStaffPermission]
