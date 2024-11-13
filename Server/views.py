@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from .models import Bookmark, Category, Book, BookRating, BookHold, BookRental, BookImage, Review
 from Accounts.models import CustomUser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError, NotFound
 from django.utils import timezone
 from .serializers import CategorySerializer, BookSerializer, BookDetailSerializer, BookRatingSerializer, ReviewSerializer
@@ -129,26 +129,25 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(sort_order=next_sort_order)
-
-        categories = Category.objects.all().order_by('sort_order')
-        all_categories_serializer = self.get_serializer(categories, many=True)
+        category = serializer.save(sort_order=next_sort_order) 
 
         return Response({
             'message': 'Category created successfully',
-            'categories': all_categories_serializer.data
+            'category': serializer.data 
         }, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         if 'flair' in request.data and request.data['flair'] == '':
             request.data['flair'] = None
 
-        response = super().update(request, *args, **kwargs)
-        categories = Category.objects.all().order_by('sort_order')
-        serializer = self.get_serializer(categories, many=True)
+        category = self.get_object()
+        serializer = self.get_serializer(category, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
         return Response({
             'message': 'Category updated successfully',
-            'categories': serializer.data
+            'category': serializer.data
         }, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], permission_classes=[IsStaffPermission])
@@ -177,7 +176,12 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
-    permission_classes = [IsAuthenticated, IsStaffPermission]
+
+    def get_permissions(self):
+        if self.action == 'list':
+            return [AllowAny()]
+        else:
+            return [IsAuthenticated(), IsStaffPermission()]
 
     def perform_create(self, serializer):
         serializer.save()
@@ -456,16 +460,21 @@ class BookCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         images_files = self.request.FILES.getlist('images')
-        
+
         try:
             book = serializer.save()
         except ValidationError as e:
             raise ValidationError({"detail": "A book with this title already exists."})
-        
+
         if images_files:
             for image_file in images_files:
                 image_instance = BookImage(book=book)
                 image_instance.save(image_file=image_file)
+
+        return Response({
+            'message': 'Book created successfully',
+            'book': BookSerializer(book).data
+        }, status=status.HTTP_201_CREATED)
 
 
 class DeleteBookView(generics.DestroyAPIView):
@@ -566,10 +575,9 @@ class BookUpdateView(generics.UpdateAPIView):
 
         book.refresh_from_db()
 
-        serializer = BookSerializer(book)
         return Response({
-            "detail": f"Book '{book.title}' updated successfully.",
-            "book": serializer.data
+            "message": f"Book '{book.title}' updated successfully.",
+            "book": BookSerializer(book).data
         }, status=status.HTTP_200_OK)
 
 
