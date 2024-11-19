@@ -3,6 +3,9 @@ FROM python:3.11-slim
 # Install system-level dependencies, including FFmpeg
 RUN apt-get update && apt-get install -y ffmpeg
 
+# Upgrade pip to the latest version
+RUN pip install --upgrade pip
+
 # Set the working directory in the container
 WORKDIR /app
 
@@ -11,6 +14,12 @@ COPY . /app
 
 # Install Python dependencies
 RUN pip install -r requirements.txt
+
+# Create the staticfiles directory
+RUN mkdir -p staticfiles
+
+# Collect static files
+RUN python manage.py collectstatic --noinput
 
 # Expose the port your application will run on
 EXPOSE 8000
