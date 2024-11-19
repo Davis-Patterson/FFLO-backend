@@ -26,17 +26,6 @@ RUN python manage.py migrate --noinput || true
 ARG ENV=development
 RUN if [ "$ENV" = "production" ]; then python manage.py collectstatic --noinput; fi
 
-# Create a superuser during the build process
-ARG SUPERUSER_USERNAME
-ARG SUPERUSER_EMAIL
-ARG SUPERUSER_PASSWORD
-RUN if [ "$ENV" = "production" ]; then \
-    python manage.py shell -c "from django.contrib.auth import get_user_model; \
-    User = get_user_model(); \
-    if not User.objects.filter(is_superuser=True).exists(): \
-        User.objects.create_superuser(username='$SUPERUSER_USERNAME', email='$SUPERUSER_EMAIL', password='$SUPERUSER_PASSWORD')"; \
-fi
-
 # Expose the port your application will run on
 EXPOSE 8000
 
