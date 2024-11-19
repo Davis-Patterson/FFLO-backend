@@ -2,7 +2,7 @@ from .base import *
 from decouple import config
 import dj_database_url
 
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = False
 
 ALLOWED_HOSTS = ['your-render-app.onrender.com', 'your-custom-domain.com']
 

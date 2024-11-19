@@ -3,7 +3,7 @@
 from .base import *
 from decouple import config
 
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
