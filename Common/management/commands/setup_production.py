@@ -16,23 +16,24 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Error applying migrations: {e}"))
             return
 
-        username = config("SUPERUSER_USERNAME").strip('"').strip("'")
+        first_name = config("SUPERUSER_USERNAME").strip('"').strip("'")
         email = config("SUPERUSER_EMAIL").strip('"').strip("'")
         password = config("SUPERUSER_PASSWORD").strip('"').strip("'")
 
-        self.stdout.write(f"Superuser details:\nUsername: {username}\nEmail: {email}")
+        self.stdout.write(f"Superuser details:\nName: {first_name}\nEmail: {email}")
 
-        if not username or not email or not password:
+        if not first_name or not email or not password:
             self.stdout.write(self.style.ERROR("SUPERUSER_USERNAME, SUPERUSER_EMAIL, or SUPERUSER_PASSWORD is missing in the environment variables."))
             return
 
         User = get_user_model()
-
         if not User.objects.filter(email=email).exists():
             self.stdout.write(self.style.WARNING("Creating superuser..."))
             try:
-                User.objects.create_superuser(username=email, email=email, password=password)
-                self.stdout.write(self.style.SUCCESS(f"Superuser '{email}' created successfully."))
+                User.objects.create_superuser(
+                    first_name=first_name, email=email, password=password
+                )
+                self.stdout.write(self.style.SUCCESS(f"Superuser '{first_name}' created successfully."))
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"Error creating superuser: {e}"))
         else:
