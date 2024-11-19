@@ -4,7 +4,7 @@ import dj_database_url
 
 DEBUG = False
 
-ALLOWED_HOSTS = ['your-render-app.onrender.com', 'your-custom-domain.com']
+ALLOWED_HOSTS = ['https://fflo-backend-86fee1187c21.herokuapp.com/']
 
 DATABASES = {
     'default': dj_database_url.config(

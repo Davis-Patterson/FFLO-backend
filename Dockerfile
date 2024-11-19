@@ -22,9 +22,7 @@ RUN mkdir -p staticfiles
 RUN python manage.py makemigrations --noinput || true
 RUN python manage.py migrate --noinput || true
 
-# Collect static files
-ARG ENV=development
-RUN if [ "$ENV" = "production" ]; then python manage.py collectstatic --noinput; fi
+RUN python manage.py collectstatic --noinput || true
 
 # Expose the port your application will run on
 EXPOSE 8000
