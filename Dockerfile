@@ -4,7 +4,7 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y ffmpeg
 
 # Upgrade pip to the latest version
-RUN pip install --upgrade pip
+RUN pip install --upgrade pip --root-user-action=ignore
 
 # Set the working directory in the container
 WORKDIR /app
@@ -18,8 +18,13 @@ RUN pip install -r requirements.txt
 # Create the staticfiles directory
 RUN mkdir -p staticfiles
 
+# Run migrations (ignore errors if database is unavailable during build)
+RUN python manage.py makemigrations --noinput || true
+RUN python manage.py migrate --noinput || true
+
 # Collect static files
-RUN python manage.py collectstatic --noinput
+ARG ENV=development
+RUN if [ "$ENV" = "production" ]; then python manage.py collectstatic --noinput; fi
 
 # Expose the port your application will run on
 EXPOSE 8000
