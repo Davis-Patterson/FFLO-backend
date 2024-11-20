@@ -4,11 +4,11 @@ import dj_database_url
 
 DEBUG = False
 
-ALLOWED_HOSTS = ['https://fflo-backend-86fee1187c21.herokuapp.com/']
+ALLOWED_HOSTS = ['fflo-backend-86fee1187c21.herokuapp.com']
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL')
+        default='postgres://<username>:<password>@localhost:5432/<database>'
     )
 }
 
