@@ -20,7 +20,7 @@ CSRF_COOKIE_SECURE = True
 MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     # ... other middleware ...
-]
+] + MIDDLEWARE
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
