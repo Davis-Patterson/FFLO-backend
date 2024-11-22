@@ -4,7 +4,7 @@ from pathlib import Path
 from decouple import config
 from datetime import timedelta
 
-print(f"Using settings module: {os.getenv('DJANGO_SETTINGS_MODULE')}")
+print(f"Using settings module: {os.getenv('DJANGO_SETTINGS_MODULE')} (PID: {os.getpid()})")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
