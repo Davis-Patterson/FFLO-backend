@@ -41,6 +41,10 @@ class UserRegistrationView(generics.CreateAPIView):
     def perform_create(self, serializer):
         user = serializer.save()
 
+        membership = Membership.objects.create(user=user, active=True)
+        membership.set_next_recurrence()
+        membership.save()
+
 
 class CreateStaffUserView(generics.CreateAPIView):
     queryset = User.objects.all()
